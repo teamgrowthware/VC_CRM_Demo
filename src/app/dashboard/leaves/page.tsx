@@ -63,8 +63,10 @@ export default function LeavesPage() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      const start = new Date(`${formData.startDate}T00:00:00`);
-      const end = new Date(`${formData.endDate}T00:00:00`);
+      const start = new Date(formData.startDate);
+      const end = new Date(formData.endDate);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
       if (end < start) {
         alert('End date must be on or after the start date');
         setIsSubmitting(false);

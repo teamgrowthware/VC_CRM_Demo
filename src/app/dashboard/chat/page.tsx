@@ -40,6 +40,7 @@ export default function ChatPage() {
   const [isTyping, setIsTyping] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [showNewChat, setShowNewChat] = useState(false);
   const [showRoomInfo, setShowRoomInfo] = useState(false);
   
@@ -141,12 +142,18 @@ export default function ChatPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [roomsData, empsData] = await Promise.all([
+        const [roomsData, empsData, clientsData] = await Promise.all([
           getMyChatRooms(),
-          fetchEmployees()
+          fetchEmployees(),
+          fetch('/api/client/me').then(res => res.json()).catch(() => ({ data: [] })) // Dummy mock fetching for clients
         ]);
         setRooms(roomsData);
         setEmployees(empsData);
+        // Fallback dummy clients if endpoint fails/empty
+        setClients(clientsData?.data?.length ? clientsData.data : [
+          { id: 'client1', name: 'Acme Corp', clientId: 'CL-001', email: 'contact@acmecorp.com' },
+          { id: 'client2', name: 'Globex Inc', clientId: 'CL-002', email: 'hello@globex.com' }
+        ]);
       } catch (err) {
         console.error(err);
       }
@@ -545,8 +552,10 @@ export default function ChatPage() {
                      className={`flex flex-col mb-4 ${isMe ? 'items-end' : 'items-start'}`}
                    >
                      <div className={`flex flex-col max-w-[70%] ${isMe ? 'self-end items-end' : 'self-start items-start'}`}>
-                      <span className="text-[11px] text-zinc-400 mb-1 px-1">
-                         {isMe ? 'You' : (msg.sender?.name || msg.senderClient?.name || 'Unknown')} • {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      <span className="text-[11px] text-zinc-400 mb-1 px-1 flex items-center gap-2">
+                         {isMe ? 'You' : (msg.sender?.name || msg.senderClient?.name || 'Unknown')}
+                         {!isMe && msg.senderClient && <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider">CLIENT</span>}
+                         • {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </span>
                       
                       <div className={`px-4 py-2.5 rounded-2xl ${
@@ -643,6 +652,7 @@ export default function ChatPage() {
         isOpen={showNewChat}
         onClose={() => setShowNewChat(false)}
         employees={employees}
+        clients={clients}
         currentUserEmail={currentUser?.email}
         onRoomCreated={(newRoom: ChatRoom) => {
           setRooms(prev => {

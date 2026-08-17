@@ -34,6 +34,7 @@ export const getNavItemsForRole = (user?: any, portfolioProjects: any[] = []) =>
         { href: '/dashboard/pilot-analytics', label: 'Pilot Analytics', icon: BarChart3 },
         { href: '/dashboard/daily-reports', label: 'My Reports (SOD/EOD)', icon: ClipboardList },
         { href: '/dashboard/team-reports', label: 'Team Reports', icon: ClipboardList },
+        { href: '/dashboard/invoices', label: 'Invoices', icon: IndianRupee },
         { href: '/dashboard/project-portfolio', label: 'Portfolio', icon: Folders, subItems: portfolioSubItems },
         ...commonItems
       ];
@@ -70,6 +71,7 @@ export const getNavItemsForRole = (user?: any, portfolioProjects: any[] = []) =>
         { href: '/dashboard/pilot-analytics', label: 'Pilot Analytics', icon: BarChart3 },
         { href: '/dashboard/daily-reports', label: 'My Reports (SOD/EOD)', icon: ClipboardList },
         { href: '/dashboard/team-reports', label: 'Team Reports', icon: ClipboardList },
+        { href: '/dashboard/invoices', label: 'Invoices', icon: IndianRupee },
         { href: '/dashboard/project-portfolio', label: 'Portfolio', icon: Folders, subItems: portfolioSubItems },
         ...commonItems
       ];

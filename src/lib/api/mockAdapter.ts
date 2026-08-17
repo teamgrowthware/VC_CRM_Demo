@@ -211,6 +211,20 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   // Attendance
   mock.onGet(/\/attendance\/all/).reply(200, { data: dummyAttendance, success: true });
   mock.onGet(/\/attendance(\?.*)?$/).reply(200, dummyAttendance);
+  mock.onPost(/\/attendance\/holidays/).reply((config) => {
+    const data = JSON.parse(config.data);
+    const dateStr = data.date; // expecting YYYY-MM-DD
+    dummyEmployees.forEach(emp => {
+      dummyAttendance.push({
+        id: `hol-${Date.now()}-${emp.id}`,
+        employeeId: emp.id,
+        employee: emp,
+        date: dateStr,
+        status: 'HOLIDAY'
+      });
+    });
+    return [200, { success: true, message: 'Holiday added and attendance updated.' }];
+  });
 
   // Timesheets
   mock.onGet(/\/timesheets\/admin\/entries/).reply(200, dummyTimesheets);
@@ -631,6 +645,123 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     return [200, { data: dummyClientTickets.find(t => t.id === id) || dummyClientTickets[0] }];
   });
   mock.onGet(/\/client\/tickets/).reply(200, { data: dummyClientTickets });
+  
+  // Admin Invoices
+  mock.onGet(/\/invoices$/).reply(200, { data: dummyClientInvoices });
+  mock.onPost(/\/invoices$/).reply((config) => {
+    const data = JSON.parse(config.data);
+    const newInvoice = {
+      id: `INV-${Date.now()}`,
+      clientName: data.clientName,
+      projectId: data.projectId,
+      subtotal: data.subtotal,
+      gstAmount: data.gstAmount,
+      totalAmount: data.totalAmount,
+      status: data.status || 'DRAFT',
+      dueDate: data.dueDate,
+      createdAt: new Date().toISOString(),
+      items: data.items
+    };
+    dummyClientInvoices.unshift(newInvoice);
+    return [200, { data: newInvoice }];
+  });
+  mock.onPatch(/\/invoices\/.+\/status/).reply((config) => {
+    const id = config.url?.split('/')[2];
+    const data = JSON.parse(config.data);
+    const inv = dummyClientInvoices.find(i => i.id === id);
+    if (inv) inv.status = data.status;
+    return [200, { data: inv }];
+  });
+  
+  // Chat Mocks
+  const dummyChatRooms = [
+    {
+      id: 'room-1',
+      type: 'PERSONAL',
+      isArchived: false,
+      isDeleted: false,
+      members: [
+        {
+          id: 'member-1',
+          employeeId: 'emp1',
+          employee: { name: 'Admin User', employeeId: 'emp1' },
+          isAdmin: true
+        },
+        {
+          id: 'member-2',
+          clientId: 'client1',
+          client: { name: 'Acme Corp', clientId: 'CL-001' }
+        }
+      ],
+      messages: [
+        {
+          id: 'msg-1',
+          roomId: 'room-1',
+          senderClientId: 'client1',
+          content: 'Hello Admin! We need an update on the project.',
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+          senderClient: { name: 'Acme Corp', clientId: 'CL-001' }
+        }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+  ];
+
+  mock.onGet(/\/chat\/rooms/).reply(200, dummyChatRooms);
+  mock.onGet(/\/chat\/rooms\/.+\/messages/).reply((config) => {
+    const roomId = config.url?.split('/')[3];
+    const room = dummyChatRooms.find(r => r.id === roomId);
+    return [200, room ? room.messages : []];
+  });
+  mock.onPost(/\/chat\/rooms/).reply((config) => {
+    const data = JSON.parse(config.data);
+    const newRoom = {
+      id: `room-${Date.now()}`,
+      type: data.type || 'PERSONAL',
+      isArchived: false,
+      isDeleted: false,
+      name: data.name,
+      members: data.memberIds.map((id: string) => ({
+        id: `member-${id}`,
+        employeeId: id.startsWith('client') ? null : id,
+        clientId: id.startsWith('client') ? id : null,
+        employee: id.startsWith('client') ? null : { name: 'User ' + id, employeeId: id },
+        client: id.startsWith('client') ? { name: 'Client ' + id, clientId: id } : null
+      })),
+      messages: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    // add admin to members
+    newRoom.members.push({
+      id: 'member-admin',
+      employeeId: 'emp1',
+      clientId: null,
+      employee: { name: 'Admin User', employeeId: 'emp1' },
+      client: null
+    } as any);
+    
+    dummyChatRooms.unshift(newRoom as any);
+    return [200, { chatRoom: newRoom }];
+  });
+  mock.onPost(/\/chat\/messages/).reply((config) => {
+    const data = JSON.parse(config.data);
+    const room = dummyChatRooms.find(r => r.id === data.roomId);
+    const newMessage = {
+      id: `msg-${Date.now()}`,
+      roomId: data.roomId,
+      senderId: 'emp1',
+      senderClientId: null,
+      content: data.content,
+      createdAt: new Date().toISOString(),
+      sender: { name: 'Admin User', employeeId: 'emp1' }
+    };
+    if (room) {
+      room.messages.push(newMessage as any);
+    }
+    return [200, { newMessage }];
+  });
   
   mock.onGet(/\/client\/me/).reply(200, { data: { id: 'client1', name: 'Acme Corp', clientId: 'CL-001', email: 'contact@acmecorp.com' } });
   
