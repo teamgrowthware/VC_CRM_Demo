@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Employee } from '@/types/employee';
 import { fetchEmployees } from '@/lib/api/employee';
 import { formatDate } from '@/lib/utils';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface Props {
   task: Task | null;
@@ -32,6 +33,9 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
   // Local state for assignee
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // Confirm Dialog State
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     if (task && isOpen) {
@@ -156,7 +160,6 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
 
   const handleDeleteTask = async () => {
     if (!task) return;
-    if (!window.confirm('Are you sure you want to delete this task?')) return;
     try {
       setLoading(true);
       await deleteTask(task.id);
@@ -168,6 +171,7 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
       toast.error('Failed to delete task');
     } finally {
       setLoading(false);
+      setShowConfirm(false);
     }
   };
 
@@ -232,7 +236,7 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
           <div className="flex items-center gap-2">
             {canManageTask && (
               <button 
-                onClick={handleDeleteTask} 
+                onClick={() => setShowConfirm(true)} 
                 className="p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 rounded-md transition-colors mr-1"
                 title="Delete Task"
               >
@@ -447,6 +451,15 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
           </form>
         </div>
       </div>
+
+      <ConfirmDialog 
+        isOpen={showConfirm}
+        title="Delete Task"
+        message={`Are you sure you want to delete the task "${task.title}"? This action cannot be undone.`}
+        isLoading={loading}
+        onConfirm={handleDeleteTask}
+        onCancel={() => setShowConfirm(false)}
+      />
     </>
   );
 };
