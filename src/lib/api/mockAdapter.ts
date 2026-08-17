@@ -79,6 +79,29 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     ]
   });
 
+  mock.onGet(/\/attendance\/analytics\/early-exit/).reply(200, {
+    success: true,
+    data: [
+      {
+        employeeId: dummyEmployees[1].employeeId,
+        name: dummyEmployees[1].name,
+        count: 2,
+        reasons: [
+          { date: new Date().toISOString(), reason: 'Doctor appointment' },
+          { date: new Date(Date.now() - 86400000).toISOString(), reason: 'Family emergency' }
+        ]
+      },
+      {
+        employeeId: dummyEmployees[2].employeeId,
+        name: dummyEmployees[2].name,
+        count: 1,
+        reasons: [
+          { date: new Date(Date.now() - 172800000).toISOString(), reason: 'Felt sick' }
+        ]
+      }
+    ]
+  });
+
   mock.onGet(/\/analytics\/tasks/).reply(200, {
     total: dummyTasks.length,
     completed: dummyTasks.filter(t => t.status === 'COMPLETED').length,
