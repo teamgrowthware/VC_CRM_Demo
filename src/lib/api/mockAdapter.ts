@@ -115,7 +115,7 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     const emp = dummyEmployees.find(e => e.id === id);
     return [200, { data: emp, success: true }];
   });
-  mock.onGet(/\/employees/).reply(200, { data: dummyEmployees, success: true });
+  mock.onGet(/\/employees(\?.*)?$/).reply(200, { data: dummyEmployees, success: true });
   mock.onPost(/\/employees/).reply((config) => {
     const data = JSON.parse(config.data);
     const newEmp = { id: `emp${Date.now()}`, ...data };
@@ -129,7 +129,7 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     const proj = dummyProjects.find(p => p.id === id);
     return [200, { project: proj, success: true }];
   });
-  mock.onGet(/\/projects/).reply(200, dummyProjects);
+  mock.onGet(/\/projects(\?.*)?$/).reply(200, dummyProjects);
   mock.onPost(/\/projects/).reply((config) => {
     const data = JSON.parse(config.data);
     const newProj = { id: `proj${Date.now()}`, ...data, members: [] };
@@ -142,11 +142,11 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   mock.onGet(/\/tasks\/project\/.+/).reply(200, dummyTasks);
   mock.onGet(/\/tasks\/.+\/comments/).reply(200, []);
   mock.onGet(/\/tasks\/.+/).reply(200, { task: dummyTasks[0] || {} });
-  mock.onGet(/\/tasks/).reply(200, dummyTasks);
+  mock.onGet(/\/tasks(\?.*)?$/).reply(200, dummyTasks);
 
   // Leaves
   mock.onGet(/\/leaves\/my/).reply(200, dummyLeaves.filter(l => l.employeeId === 'emp1'));
-  mock.onGet(/\/leaves/).reply(200, dummyLeaves);
+  mock.onGet(/\/leaves(\?.*)?$/).reply(200, dummyLeaves);
   mock.onPost(/\/leaves/).reply((config) => {
     const data = JSON.parse(config.data);
     const newLeave = { id: `leave${Date.now()}`, ...data, status: 'PENDING', createdAt: new Date().toISOString() };
@@ -163,10 +163,10 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
 
   // Attendance
   mock.onGet(/\/attendance\/all/).reply(200, { data: dummyAttendance, success: true });
-  mock.onGet(/\/attendance/).reply(200, dummyAttendance);
+  mock.onGet(/\/attendance(\?.*)?$/).reply(200, dummyAttendance);
 
   // Finance
-  mock.onGet(/\/finance/).reply(200, dummyFinance);
+  mock.onGet(/\/finance(\?.*)?$/).reply(200, dummyFinance);
 
   // Reports
   mock.onGet(/\/reports\/team/).reply(200, []);
