@@ -350,6 +350,28 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     return [200, { newMessage }];
   });
 
+  // Settings
+  mock.onGet(/\/settings\/notifications/).reply(200, {
+    id: 'n1', userId: 'emp1', enabledTypes: ['TASK_ASSIGNED', 'SOD_REMINDER'], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+  });
+  mock.onPut(/\/settings\/notifications/).reply(200, {
+    id: 'n1', userId: 'emp1', enabledTypes: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+  });
+  mock.onGet(/\/settings$/).reply(200, {
+    id: 'sys1', officeStartTime: '09:00', lateThreshold: '09:15', lateComingEnabled: true, halfDayEnabled: true,
+    lunchDuration: 60, breakDuration: 15, sodReminderTime: '08:45', eodReminderTime: '18:00',
+    idleTimeoutMinutes: 15, idleWarningSeconds: 60, autoPauseTimerEnabled: true, requireApprovalToResume: false,
+    desktopAppEnabledRoles: ['EMPLOYEE'], heartbeatIntervalSeconds: 60, autoStartEnabled: true, ruleBookText: null
+  });
+  mock.onPatch(/\/settings$/).reply(200, {});
+  mock.onGet(/\/employees\/.+/).reply((config) => {
+    const id = config.url?.split('/')[2];
+    const emp = dummyEmployees.find(e => e.id === id);
+    return [200, { data: emp || dummyEmployees[0] }];
+  });
+  mock.onPut(/\/auth\/me/).reply(200, { success: true, message: 'Updated', data: dummyEmployees[1] });
+  mock.onPost(/\/auth\/change-password/).reply(200, { success: true, message: 'Password changed' });
+
   // Reports
   mock.onGet(/\/reports\/team/).reply(200, []);
   mock.onGet(/\/reports\/my/).reply(200, []);
