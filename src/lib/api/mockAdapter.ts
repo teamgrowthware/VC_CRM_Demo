@@ -30,6 +30,29 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     { id: 'leave3', employeeId: 'emp2', employee: dummyEmployees[2], leaveType: 'EARNED_LEAVE', startDate: '2026-07-01', endDate: '2026-07-05', numberOfDays: 5, reason: 'Vacation', status: 'REJECTED', createdAt: '2026-06-25T10:00:00Z' }
   ];
 
+  const dummyTimesheets = [
+    {
+      id: 'ts1', employeeId: 'emp1', employee: dummyEmployees[1], projectId: 'proj1', project: dummyProjects[0], task: dummyTasks[0],
+      date: new Date().toISOString(), startTime: new Date(new Date().setHours(9, 0, 0, 0)).toISOString(), endTime: new Date(new Date().setHours(12, 30, 0, 0)).toISOString(),
+      durationMinutes: 210, description: 'Worked on UI mockups for the new dashboard', type: 'MANUAL', status: 'APPROVED', isBillable: true, workCategory: 'DESIGN'
+    },
+    {
+      id: 'ts2', employeeId: 'emp2', employee: dummyEmployees[2], projectId: 'proj2', project: dummyProjects[1], task: dummyTasks[1],
+      date: new Date().toISOString(), startTime: new Date(new Date().setHours(14, 0, 0, 0)).toISOString(), endTime: new Date(new Date().setHours(16, 45, 0, 0)).toISOString(),
+      durationMinutes: 165, description: 'Database schema design and initialization', type: 'TIMER', status: 'SUBMITTED', isBillable: true, workCategory: 'DEVELOPMENT'
+    },
+    {
+      id: 'ts3', employeeId: 'emp1', employee: dummyEmployees[1], manualProjectName: 'Internal Meeting',
+      date: new Date(Date.now() - 86400000).toISOString(), startTime: new Date(new Date(Date.now() - 86400000).setHours(10, 0, 0, 0)).toISOString(), endTime: new Date(new Date(Date.now() - 86400000).setHours(11, 0, 0, 0)).toISOString(),
+      durationMinutes: 60, description: 'Weekly sync with the team', type: 'MANUAL', status: 'APPROVED', isBillable: false, workCategory: 'MEETING'
+    },
+    {
+      id: 'ts4', employeeId: 'emp3', employee: dummyEmployees[3], projectId: 'proj1', project: dummyProjects[0], task: dummyTasks[2],
+      date: new Date(Date.now() - 86400000).toISOString(), startTime: new Date(new Date(Date.now() - 86400000).setHours(13, 0, 0, 0)).toISOString(), endTime: new Date(new Date(Date.now() - 86400000).setHours(17, 0, 0, 0)).toISOString(),
+      durationMinutes: 240, description: 'User interviews and research summary', type: 'TIMER', status: 'APPROVED', isBillable: true, workCategory: 'RESEARCH'
+    }
+  ];
+
   const dummyAttendance = [
     { id: 'att1', employeeId: 'emp1', employee: dummyEmployees[1], date: new Date().toISOString().slice(0,10), checkIn: '09:00', checkOut: '17:00', status: 'PRESENT' },
     { id: 'att2', employeeId: 'emp2', employee: dummyEmployees[2], date: new Date().toISOString().slice(0,10), checkIn: '09:15', checkOut: '17:30', status: 'PRESENT' },
@@ -188,6 +211,17 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   // Attendance
   mock.onGet(/\/attendance\/all/).reply(200, { data: dummyAttendance, success: true });
   mock.onGet(/\/attendance(\?.*)?$/).reply(200, dummyAttendance);
+
+  // Timesheets
+  mock.onGet(/\/timesheets\/admin\/entries/).reply(200, dummyTimesheets);
+  mock.onGet(/\/timesheets\/my/).reply(200, dummyTimesheets.filter(t => t.employeeId === 'emp1'));
+  mock.onGet(/\/timesheets\/active-timer/).reply(200, null);
+  mock.onGet(/\/timesheets\/admin\/overview/).reply(200, {
+    pendingApprovals: dummyTimesheets.filter(t => t.status === 'SUBMITTED').length,
+    totalHours: Math.round(dummyTimesheets.reduce((a, b) => a + (b.durationMinutes || 0), 0) / 60),
+    billableHours: Math.round(dummyTimesheets.filter(t => t.isBillable).reduce((a, b) => a + (b.durationMinutes || 0), 0) / 60),
+    totalEntries: dummyTimesheets.length
+  });
 
   // Finance
   mock.onGet(/\/finance(\?.*)?$/).reply(200, dummyFinance);
