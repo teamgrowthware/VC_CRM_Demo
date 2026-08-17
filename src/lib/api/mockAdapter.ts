@@ -18,9 +18,10 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   ];
 
   const dummyTasks = [
-    { id: 'task1', title: 'Design Mockups', description: 'Create Figma mockups', status: 'TODO', priority: 'HIGH', projectId: 'proj1', assigneeId: 'emp2' },
-    { id: 'task2', title: 'Setup DB', description: 'Initialize PostgreSQL', status: 'IN_PROGRESS', priority: 'MEDIUM', projectId: 'proj2', assigneeId: 'emp1' },
-    { id: 'task3', title: 'User Research', description: 'Interview stakeholders', status: 'COMPLETED', priority: 'LOW', projectId: 'proj1', assigneeId: 'emp3' }
+    { id: 'task1', title: 'Design Mockups', description: 'Create Figma mockups', status: 'TODO', priority: 'HIGH', projectId: 'proj1', assigneeId: 'emp2', startDate: new Date(Date.now() - 2 * 86400000).toISOString(), deadline: new Date(Date.now() + 5 * 86400000).toISOString() },
+    { id: 'task2', title: 'Setup DB', description: 'Initialize PostgreSQL', status: 'IN_PROGRESS', priority: 'MEDIUM', projectId: 'proj2', assigneeId: 'emp1', startDate: new Date(Date.now() - 5 * 86400000).toISOString(), deadline: new Date(Date.now() + 10 * 86400000).toISOString() },
+    { id: 'task3', title: 'User Research', description: 'Interview stakeholders', status: 'COMPLETED', priority: 'LOW', projectId: 'proj1', assigneeId: 'emp3', startDate: new Date(Date.now() - 15 * 86400000).toISOString(), deadline: new Date(Date.now() - 2 * 86400000).toISOString() },
+    { id: 'task4', title: 'API Integration', description: 'Integrate the new APIs', status: 'TODO', priority: 'HIGH', projectId: 'proj1', assigneeId: 'emp1', startDate: new Date(Date.now() + 1 * 86400000).toISOString(), deadline: new Date(Date.now() + 15 * 86400000).toISOString() }
   ];
 
   const dummyLeaves = [
