@@ -18,14 +18,6 @@ const urlBase64ToUint8Array = (base64String: string) => {
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BNNRtcgogodkwLP2CKEzo5bL3kBt605pQKCK9_U55Anxmhv0upSrtStRE_GACCCrG8WvaugH3Gq4v0pQmsIfVL0';
 
 export const useWebPush = () => {
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
-      if (Notification.permission === 'granted') {
-        subscribeToPush();
-      }
-    }
-  }, []);
-
   const subscribeToPush = async () => {
     try {
       const permission = await Notification.requestPermission();
@@ -65,6 +57,14 @@ export const useWebPush = () => {
       return false;
     }
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
+      if (Notification.permission === 'granted') {
+        subscribeToPush();
+      }
+    }
+  }, []);
 
   return { subscribeToPush };
 };

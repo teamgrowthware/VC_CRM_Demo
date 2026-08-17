@@ -1,6 +1,33 @@
 import apiClient from './apiClient';
 import { Project, ProjectMember, Document } from '@/types/project';
 
+export interface Milestone {
+  id: string;
+  projectId: string;
+  title: string;
+  amount: number;
+  paidAmount: number;
+  dueDate: string;
+  releaseDate?: string | null;
+  completedAt?: string | null;
+  status: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  project?: { id: string; name: string; totalValue?: number };
+  payments?: { amount: number; mode?: string; transactionId?: string; date?: string; notes?: string; createdBy?: { name: string } }[];
+}
+
+export interface MilestoneStats {
+  totalAmount: number;
+  totalPaid: number;
+  totalPending: number;
+  overdueCount: number;
+  paidCount: number;
+  pendingCount: number;
+  partiallyPaidCount: number;
+}
+
 
 export const getAllProjects = async (): Promise<Project[]> => {
   const { data } = await apiClient.get(`/projects`);
@@ -74,4 +101,13 @@ export const getFinanceAnalytics = async () => {
 export const finalizeProjectFinance = async (projectId: string) => {
   const { data } = await apiClient.post(`/projects/${projectId}/finance/finalize`);
   return data;
+};
+
+export const getAllMilestones = async (): Promise<{ milestones: Milestone[]; stats: MilestoneStats }> => {
+  const { data } = await apiClient.get('/projects/milestones/all');
+  return data;
+};
+
+export const deleteMilestone = async (milestoneId: string): Promise<void> => {
+  await apiClient.delete(`/projects/milestones/${milestoneId}`);
 };
