@@ -224,7 +224,30 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   });
 
   // Finance
-  mock.onGet(/\/finance(\?.*)?$/).reply(200, dummyFinance);
+  const dummyFinanceOverview = {
+    totalRevenue: 2500000,
+    totalPayroll: 850000,
+    paidSalary: 600000,
+    pendingSalary: 250000,
+    totalExpenses: 120000,
+    pettyCashExpense: 15000,
+    totalDeductions: 45000,
+    netPayable: 75000,
+    recentTransactions: [
+      { title: 'Server Hosting (AWS)', date: new Date().toISOString(), amount: 45000, type: 'EXPENSE', status: 'COMPLETED' },
+      { title: 'Employee Salaries', date: new Date(Date.now() - 86400000 * 2).toISOString(), amount: 600000, type: 'PAYROLL', status: 'COMPLETED' },
+      { title: 'Client Payment (Acme Corp)', date: new Date(Date.now() - 86400000 * 4).toISOString(), amount: 1200000, type: 'REVENUE', status: 'COMPLETED' },
+      { title: 'Office Supplies', date: new Date(Date.now() - 86400000 * 5).toISOString(), amount: 15000, type: 'PETTY_CASH_OUT', status: 'COMPLETED' }
+    ]
+  };
+
+  mock.onGet(/\/admin\/finance\/overview/).reply(200, { data: dummyFinanceOverview });
+  mock.onGet(/\/admin\/finance\/payroll/).reply(200, { data: [] });
+  mock.onGet(/\/admin\/finance\/deductions/).reply(200, { data: [] });
+  mock.onGet(/\/admin\/finance\/addons/).reply(200, { data: [] });
+  mock.onGet(/\/admin\/finance\/expenses/).reply(200, { data: [] });
+  mock.onGet(/\/admin\/finance\/petty-cash/).reply(200, { data: [] });
+  mock.onPost(/\/admin\/finance\/verify-pin/).reply(200, { success: true });
 
   // Reports
   mock.onGet(/\/reports\/team/).reply(200, []);
