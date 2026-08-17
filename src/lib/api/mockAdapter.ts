@@ -288,6 +288,68 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     sodsSubmitted: 22, eodsSubmitted: 18, pendingEods: []
   });
 
+  // Chat
+  const dummyChatRooms = [
+    {
+      id: 'room1',
+      name: 'Engineering Team',
+      type: 'GROUP',
+      isArchived: false,
+      isDeleted: false,
+      createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+      updatedAt: new Date().toISOString(),
+      members: [
+        { id: 'm1', roomId: 'room1', employeeId: 'emp1', employee: dummyEmployees[1], isAdmin: true, isPinned: false, isFavorite: false, isMuted: false, priority: 'MEDIUM' },
+        { id: 'm2', roomId: 'room1', employeeId: 'emp2', employee: dummyEmployees[2], isAdmin: false, isPinned: false, isFavorite: false, isMuted: false, priority: 'MEDIUM' }
+      ],
+      messages: [
+        { id: 'msg1', roomId: 'room1', senderId: 'emp2', content: 'Hey team, the new API is deployed.', createdAt: new Date(Date.now() - 86400000).toISOString(), sender: dummyEmployees[2] },
+        { id: 'msg2', roomId: 'room1', senderId: 'emp1', content: 'Great work! I will start testing it now.', createdAt: new Date(Date.now() - 4000000).toISOString(), sender: dummyEmployees[1] }
+      ]
+    },
+    {
+      id: 'room2',
+      name: null,
+      type: 'PERSONAL',
+      isArchived: false,
+      isDeleted: false,
+      createdAt: new Date(Date.now() - 86400000 * 10).toISOString(),
+      updatedAt: new Date().toISOString(),
+      members: [
+        { id: 'm3', roomId: 'room2', employeeId: 'emp1', employee: dummyEmployees[1], isAdmin: false, isPinned: true, isFavorite: true, isMuted: false, priority: 'HIGH' },
+        { id: 'm4', roomId: 'room2', employeeId: 'emp3', employee: dummyEmployees[3], isAdmin: false, isPinned: false, isFavorite: false, isMuted: false, priority: 'MEDIUM' }
+      ],
+      messages: [
+        { id: 'msg3', roomId: 'room2', senderId: 'emp3', content: 'Do you have the latest design files?', createdAt: new Date(Date.now() - 3600000).toISOString(), sender: dummyEmployees[3] },
+        { id: 'msg4', roomId: 'room2', senderId: 'emp1', content: 'Yes, I will send them over in a bit.', createdAt: new Date(Date.now() - 100000).toISOString(), sender: dummyEmployees[1] }
+      ]
+    }
+  ];
+
+  mock.onGet(/\/chat\/rooms$/).reply(200, dummyChatRooms);
+  mock.onGet(/\/chat\/rooms\/.+\/messages/).reply((config) => {
+    const roomId = config.url?.split('/')[3];
+    const room = dummyChatRooms.find(r => r.id === roomId);
+    return [200, room ? room.messages : []];
+  });
+  mock.onPost(/\/chat\/messages/).reply((config) => {
+    const data = JSON.parse(config.data);
+    const newMessage = {
+      id: `msg${Date.now()}`,
+      roomId: data.roomId,
+      senderId: dummyEmployees[1].id,
+      content: data.content,
+      createdAt: new Date().toISOString(),
+      sender: dummyEmployees[1]
+    };
+    const room = dummyChatRooms.find(r => r.id === data.roomId);
+    if (room) {
+      room.messages.push(newMessage);
+      room.updatedAt = newMessage.createdAt;
+    }
+    return [200, { newMessage }];
+  });
+
   // Reports
   mock.onGet(/\/reports\/team/).reply(200, []);
   mock.onGet(/\/reports\/my/).reply(200, []);
