@@ -256,7 +256,104 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   };
 
   mock.onGet(/\/admin\/finance\/overview/).reply(200, { data: dummyFinanceOverview });
-  mock.onGet(/\/admin\/finance\/payroll/).reply(200, { data: [] });
+  
+  let dummyPayrolls: any[] = [];
+  let dummyPayslips: any[] = [];
+  
+  mock.onGet(/\/admin\/finance\/payroll/).reply((config) => {
+    const params = new URLSearchParams(config.url?.split('?')[1] || '');
+    const m = params.get('month') ? parseInt(params.get('month') as string) : new Date().getMonth() + 1;
+    const y = params.get('year') ? parseInt(params.get('year') as string) : new Date().getFullYear();
+    const data = dummyPayrolls.filter(p => p.month === m && p.year === y);
+    return [200, { data }];
+  });
+
+  mock.onPost(/\/admin\/finance\/payroll\/generate/).reply((config) => {
+    const { month, year } = JSON.parse(config.data);
+    const m = month || new Date().getMonth() + 1;
+    const y = year || new Date().getFullYear();
+    
+    dummyEmployees.forEach(emp => {
+      const exists = dummyPayrolls.find(p => p.employeeId === emp.id && p.month === m && p.year === y);
+      if (!exists && emp.status === 'ACTIVE') {
+        dummyPayrolls.push({
+          id: `pr-${Date.now()}-${emp.id}`,
+          employeeId: emp.id,
+          employee: emp,
+          month: m,
+          year: y,
+          netSalary: emp.salary || 50000,
+          status: 'PENDING',
+          paymentMode: null,
+          paymentDate: null
+        });
+      }
+    });
+    
+    return [200, { data: dummyPayrolls.filter(p => p.month === m && p.year === y) }];
+  });
+
+  mock.onPatch(/\/admin\/finance\/payroll\/.+\/pay/).reply((config) => {
+    const id = config.url?.split('/')[4];
+    const data = JSON.parse(config.data);
+    const pr = dummyPayrolls.find(p => p.id === id);
+    if (pr) {
+      pr.status = 'PAID';
+      pr.paymentMode = data.paymentMode;
+      pr.paymentDate = data.paymentDate || new Date().toISOString();
+    }
+    return [200, { data: pr }];
+  });
+
+  mock.onGet(/\/payslips\/mine/).reply(200, { data: dummyPayslips.filter(s => s.employeeId === dummyEmployees[1].id) });
+  
+  mock.onGet(/\/payslips\/all/).reply((config) => {
+    const params = new URLSearchParams(config.url?.split('?')[1] || '');
+    const m = params.get('month') ? parseInt(params.get('month') as string) : null;
+    const y = params.get('year') ? parseInt(params.get('year') as string) : null;
+    let res = dummyPayslips;
+    if (m && y) res = res.filter(s => s.monthInt === m && s.yearInt === y);
+    return [200, { data: res }];
+  });
+
+  mock.onPost(/\/payslips\/generate/).reply((config) => {
+    const { month, year } = JSON.parse(config.data);
+    const payrolls = dummyPayrolls.filter(p => p.month === month && p.year === year);
+    if (payrolls.length === 0) {
+      return [400, { message: 'No payroll records found. Generate payroll first.' }];
+    }
+    
+    payrolls.forEach(pr => {
+      const exists = dummyPayslips.find(ps => ps.employeeId === pr.employeeId && ps.monthInt === month && ps.yearInt === year);
+      if (!exists) {
+        dummyPayslips.push({
+          id: `ps-${Date.now()}-${pr.employeeId}`,
+          employeeId: pr.employeeId,
+          employee: pr.employee,
+          month: `${month}/${year}`,
+          period: `${year}-${month.toString().padStart(2, '0')}`,
+          monthInt: month,
+          yearInt: year,
+          netSalary: pr.netSalary,
+          data: {
+            employee: pr.employee,
+            netSalary: pr.netSalary,
+            earnings: { baseSalary: pr.netSalary, grossEarnings: pr.netSalary, totalAddons: 0, addons: [] },
+            deductions: { totalDeductions: 0, attendanceDeduction: 0, customDeductions: [], penalties: [] },
+            attendance: { presentDays: 20, absentDays: 0, halfDays: 0, lateMarks: 0 }
+          },
+          createdAt: new Date().toISOString()
+        });
+      }
+    });
+    return [200, { success: true, message: 'Payslips generated successfully' }];
+  });
+
+  mock.onDelete(/\/payslips\/.+/).reply((config) => {
+    const id = config.url?.split('/')[2];
+    dummyPayslips = dummyPayslips.filter(s => s.id !== id);
+    return [200, { success: true }];
+  });
   mock.onGet(/\/admin\/finance\/deductions/).reply(200, { data: [] });
   mock.onGet(/\/admin\/finance\/addons/).reply(200, { data: [] });
   mock.onGet(/\/admin\/finance\/expenses/).reply(200, { data: [] });
