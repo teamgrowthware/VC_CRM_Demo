@@ -699,7 +699,7 @@ export default function SettingsPage() {
                               setSettings(prev => ({ ...prev!, desktopAppEnabledRoles: newRoles }));
                             }}
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all ${
-                              settings?.desktopAppEnabledRoles.includes(role)
+                              (settings?.desktopAppEnabledRoles || []).includes(role)
                               ? 'bg-purple-600 text-white'
                               : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-200'
                             }`}
