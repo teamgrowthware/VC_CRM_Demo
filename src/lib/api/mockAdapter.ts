@@ -420,9 +420,62 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   mock.onPost(/\/auth\/change-password/).reply(200, { success: true, message: 'Password changed' });
 
   // Reports
-  mock.onGet(/\/reports\/team/).reply(200, []);
-  mock.onGet(/\/reports\/my/).reply(200, []);
-  mock.onGet(/\/reports\/date\/.+/).reply(200, []);
+  const dummyReports = [
+    {
+      id: 'rep1', employeeId: 'emp1', date: new Date().toISOString().split('T')[0],
+      sodText: 'I will be working on the new analytics dashboard.',
+      eodText: 'Finished the UI, API integration is pending.',
+      tasksCompleted: 'UI for Pilot Analytics', blockers: 'None',
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      employee: dummyEmployees[1]
+    },
+    {
+      id: 'rep2', employeeId: 'emp2', date: new Date().toISOString().split('T')[0],
+      sodText: 'Backend API optimizations for finance module.',
+      eodText: null, tasksCompleted: null, blockers: null,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      employee: dummyEmployees[2]
+    },
+    {
+      id: 'rep3', employeeId: 'emp3', date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+      sodText: 'Design review for the mobile app.',
+      eodText: 'All screens approved.', tasksCompleted: 'Mobile App screens', blockers: 'None',
+      createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString(),
+      employee: dummyEmployees[3]
+    }
+  ];
+
+  mock.onGet(/\/reports\/team/).reply(200, dummyReports);
+  mock.onGet(/\/reports\/my/).reply(200, dummyReports.filter(r => r.employeeId === 'emp1'));
+  mock.onGet(/\/reports\/date\/.+/).reply((config) => {
+    const date = config.url?.split('/')[3];
+    return [200, dummyReports.filter(r => r.date === date)];
+  });
+  
+  mock.onPost(/\/reports\/sod/).reply((config) => {
+    const data = JSON.parse(config.data);
+    const newReport = {
+      id: `rep${Date.now()}`, employeeId: 'emp1', date: new Date().toISOString().split('T')[0],
+      sodText: data.sodText, eodText: null, tasksCompleted: null, blockers: null,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      employee: dummyEmployees[1]
+    };
+    dummyReports.unshift(newReport);
+    return [200, { report: newReport }];
+  });
+
+  mock.onPatch(/\/reports\/eod\/.+/).reply((config) => {
+    const id = config.url?.split('/')[3];
+    const data = JSON.parse(config.data);
+    const report = dummyReports.find(r => r.id === id);
+    if (report) {
+      report.eodText = data.eodText;
+      report.tasksCompleted = data.tasksCompleted;
+      report.blockers = data.blockers;
+      report.updatedAt = new Date().toISOString();
+    }
+    return [200, { report }];
+  });
 
   // Auth
   mock.onPost(/\/auth\/login/).reply(200, {
