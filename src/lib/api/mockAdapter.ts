@@ -282,6 +282,19 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     return [200, { success: true }];
   });
 
+  // Pilot Analytics
+  mock.onGet(/\/pilot\/stats/).reply(200, {
+    activePilotUsers: 45,
+    feedbackCount: 12,
+    recentCrashes: [
+      { id: 'c1', errorMessage: 'Memory out of bounds', user: dummyEmployees[1], deviceId: 'MAC-LAPTOP-002', errorStack: 'Error: Memory out of bounds\\n    at DesktopAgent.sync (agent.js:45)\\n    at processTicksAndRejections (internal/process/task_queues.js:97:5)', timestamp: new Date(Date.now() - 3600000).toISOString() },
+      { id: 'c2', errorMessage: 'Failed to reconnect socket', user: dummyEmployees[0], deviceId: 'WIN-DESKTOP-001', errorStack: 'SocketException: Connection refused\\n    at NetworkHandler.connect (network.js:12)', timestamp: new Date(Date.now() - 86400000).toISOString() }
+    ],
+    recentFeedback: [
+      { id: 'f1', user: dummyEmployees[2], rating: 5, isIdleAccurate: true, hadFalsePause: false, comment: 'The new idle detection works perfectly, doesn\'t pause when I\'m reading long documents.', createdAt: new Date(Date.now() - 7200000).toISOString() },
+      { id: 'f2', user: dummyEmployees[1], rating: 3, isIdleAccurate: false, hadFalsePause: true, comment: 'It paused my timer while I was on a Zoom call on my other monitor.', createdAt: new Date(Date.now() - 86400000).toISOString() }
+    ]
+  });
 
   // Analytics
   mock.onGet(/\/analytics\/team-productivity/).reply(200, [
