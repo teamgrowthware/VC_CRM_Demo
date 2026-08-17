@@ -419,6 +419,84 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   mock.onPut(/\/auth\/me/).reply(200, { success: true, message: 'Updated', data: dummyEmployees[1] });
   mock.onPost(/\/auth\/change-password/).reply(200, { success: true, message: 'Password changed' });
 
+  // Portfolio
+  const dummyPortfolio = [
+    {
+      id: 'port1',
+      title: 'E-Commerce Revamp',
+      description: 'Complete overhaul of the e-commerce platform using Next.js and Tailwind CSS.',
+      projectLink: 'https://ecommerce-revamp.demo.com',
+      technologiesUsed: 'React, Next.js, Tailwind, Stripe',
+      completionDate: new Date(Date.now() - 86400000 * 30).toISOString(),
+      createdById: dummyEmployees[1].id,
+      createdBy: dummyEmployees[1],
+      createdAt: new Date(Date.now() - 86400000 * 60).toISOString(),
+      updatedAt: new Date(Date.now() - 86400000 * 30).toISOString()
+    },
+    {
+      id: 'port2',
+      title: 'Banking Mobile App',
+      description: 'A React Native mobile application for digital banking with high security features.',
+      projectLink: 'https://banking-app.demo.com',
+      technologiesUsed: 'React Native, Node.js, PostgreSQL',
+      completionDate: new Date(Date.now() - 86400000 * 90).toISOString(),
+      createdById: dummyEmployees[2].id,
+      createdBy: dummyEmployees[2],
+      createdAt: new Date(Date.now() - 86400000 * 120).toISOString(),
+      updatedAt: new Date(Date.now() - 86400000 * 90).toISOString()
+    },
+    {
+      id: 'port3',
+      title: 'Internal CRM Tool',
+      description: 'CRM tool built for internal sales team to manage leads and client communications.',
+      projectLink: '',
+      technologiesUsed: 'Vue.js, Express, MongoDB',
+      completionDate: new Date(Date.now() - 86400000 * 15).toISOString(),
+      createdById: dummyEmployees[3].id,
+      createdBy: dummyEmployees[3],
+      createdAt: new Date(Date.now() - 86400000 * 45).toISOString(),
+      updatedAt: new Date(Date.now() - 86400000 * 15).toISOString()
+    }
+  ];
+
+  mock.onGet(/\/portfolio$/).reply(200, dummyPortfolio);
+  mock.onGet(/\/portfolio\/.+/).reply((config) => {
+    const id = config.url?.split('/')[2];
+    const project = dummyPortfolio.find(p => p.id === id);
+    return [200, project || dummyPortfolio[0]];
+  });
+  mock.onPost(/\/portfolio$/).reply((config) => {
+    const data = JSON.parse(config.data);
+    const newProject = {
+      id: `port${Date.now()}`,
+      ...data,
+      createdById: dummyEmployees[1].id,
+      createdBy: dummyEmployees[1],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    dummyPortfolio.unshift(newProject);
+    return [200, newProject];
+  });
+  mock.onPut(/\/portfolio\/.+/).reply((config) => {
+    const id = config.url?.split('/')[2];
+    const data = JSON.parse(config.data);
+    const projectIndex = dummyPortfolio.findIndex(p => p.id === id);
+    if (projectIndex !== -1) {
+      dummyPortfolio[projectIndex] = { ...dummyPortfolio[projectIndex], ...data, updatedAt: new Date().toISOString() };
+      return [200, dummyPortfolio[projectIndex]];
+    }
+    return [404, { message: 'Not found' }];
+  });
+  mock.onDelete(/\/portfolio\/.+/).reply((config) => {
+    const id = config.url?.split('/')[2];
+    const projectIndex = dummyPortfolio.findIndex(p => p.id === id);
+    if (projectIndex !== -1) {
+      dummyPortfolio.splice(projectIndex, 1);
+    }
+    return [200, { success: true }];
+  });
+
   // Reports
   const dummyReports = [
     {
