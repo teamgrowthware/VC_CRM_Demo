@@ -41,70 +41,6 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     { id: 'fin3', type: 'EXPENSE', amount: 12000, date: '2026-08-10', description: 'Office Supplies', category: 'Operations' }
   ];
 
-  // Employees
-  mock.onGet(/\/employees\/.+/).reply((config) => {
-    const id = config.url?.split('/').pop();
-    const emp = dummyEmployees.find(e => e.id === id);
-    return [200, { data: emp, success: true }];
-  });
-  mock.onGet(/\/employees/).reply(200, { data: dummyEmployees, success: true });
-  mock.onPost(/\/employees/).reply((config) => {
-    const data = JSON.parse(config.data);
-    const newEmp = { id: `emp${Date.now()}`, ...data };
-    dummyEmployees.push(newEmp);
-    return [200, { data: newEmp, success: true }];
-  });
-
-  // Projects
-  mock.onGet(/\/projects\/.+/).reply((config) => {
-    const id = config.url?.split('/').pop();
-    const proj = dummyProjects.find(p => p.id === id);
-    return [200, { project: proj, success: true }];
-  });
-  mock.onGet(/\/projects/).reply(200, dummyProjects);
-  mock.onPost(/\/projects/).reply((config) => {
-    const data = JSON.parse(config.data);
-    const newProj = { id: `proj${Date.now()}`, ...data, members: [] };
-    dummyProjects.push(newProj);
-    return [200, { project: newProj, success: true }];
-  });
-
-  // Tasks
-  mock.onGet(/\/tasks\/employee\/.+/).reply(200, dummyTasks);
-  mock.onGet(/\/tasks\/project\/.+/).reply(200, dummyTasks);
-  mock.onGet(/\/tasks\/.+\/comments/).reply(200, []);
-  mock.onGet(/\/tasks\/.+/).reply(200, { task: dummyTasks[0] || {} });
-  mock.onGet(/\/tasks/).reply(200, dummyTasks);
-
-  // Leaves
-  mock.onGet(/\/leaves\/my/).reply(200, dummyLeaves.filter(l => l.employeeId === 'emp1'));
-  mock.onGet(/\/leaves/).reply(200, dummyLeaves);
-  mock.onPost(/\/leaves/).reply((config) => {
-    const data = JSON.parse(config.data);
-    const newLeave = { id: `leave${Date.now()}`, ...data, status: 'PENDING', createdAt: new Date().toISOString() };
-    dummyLeaves.push(newLeave);
-    return [200, newLeave];
-  });
-  mock.onPatch(/\/leaves\/.+\/status/).reply((config) => {
-    const id = config.url?.split('/')[2];
-    const data = JSON.parse(config.data);
-    const leave = dummyLeaves.find(l => l.id === id);
-    if (leave) leave.status = data.status;
-    return [200, leave];
-  });
-
-  // Attendance
-  mock.onGet(/\/attendance\/all/).reply(200, { data: dummyAttendance, success: true });
-  mock.onGet(/\/attendance/).reply(200, dummyAttendance);
-
-  // Finance
-  mock.onGet(/\/finance/).reply(200, dummyFinance);
-
-  // Reports
-  mock.onGet(/\/reports\/team/).reply(200, []);
-  mock.onGet(/\/reports\/my/).reply(200, []);
-  mock.onGet(/\/reports\/date\/.+/).reply(200, []);
-
   // Analytics/Dashboard
   mock.onGet(/\/analytics\/overview/).reply(200, {
     success: true,
@@ -172,6 +108,70 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     overdue: Math.floor(Math.random() * 2),
     score: Math.floor(Math.random() * 30) + 70
   })));
+
+  // Employees
+  mock.onGet(/\/employees\/.+/).reply((config) => {
+    const id = config.url?.split('/').pop();
+    const emp = dummyEmployees.find(e => e.id === id);
+    return [200, { data: emp, success: true }];
+  });
+  mock.onGet(/\/employees/).reply(200, { data: dummyEmployees, success: true });
+  mock.onPost(/\/employees/).reply((config) => {
+    const data = JSON.parse(config.data);
+    const newEmp = { id: `emp${Date.now()}`, ...data };
+    dummyEmployees.push(newEmp);
+    return [200, { data: newEmp, success: true }];
+  });
+
+  // Projects
+  mock.onGet(/\/projects\/.+/).reply((config) => {
+    const id = config.url?.split('/').pop();
+    const proj = dummyProjects.find(p => p.id === id);
+    return [200, { project: proj, success: true }];
+  });
+  mock.onGet(/\/projects/).reply(200, dummyProjects);
+  mock.onPost(/\/projects/).reply((config) => {
+    const data = JSON.parse(config.data);
+    const newProj = { id: `proj${Date.now()}`, ...data, members: [] };
+    dummyProjects.push(newProj);
+    return [200, { project: newProj, success: true }];
+  });
+
+  // Tasks
+  mock.onGet(/\/tasks\/employee\/.+/).reply(200, dummyTasks);
+  mock.onGet(/\/tasks\/project\/.+/).reply(200, dummyTasks);
+  mock.onGet(/\/tasks\/.+\/comments/).reply(200, []);
+  mock.onGet(/\/tasks\/.+/).reply(200, { task: dummyTasks[0] || {} });
+  mock.onGet(/\/tasks/).reply(200, dummyTasks);
+
+  // Leaves
+  mock.onGet(/\/leaves\/my/).reply(200, dummyLeaves.filter(l => l.employeeId === 'emp1'));
+  mock.onGet(/\/leaves/).reply(200, dummyLeaves);
+  mock.onPost(/\/leaves/).reply((config) => {
+    const data = JSON.parse(config.data);
+    const newLeave = { id: `leave${Date.now()}`, ...data, status: 'PENDING', createdAt: new Date().toISOString() };
+    dummyLeaves.push(newLeave);
+    return [200, newLeave];
+  });
+  mock.onPatch(/\/leaves\/.+\/status/).reply((config) => {
+    const id = config.url?.split('/')[2];
+    const data = JSON.parse(config.data);
+    const leave = dummyLeaves.find(l => l.id === id);
+    if (leave) leave.status = data.status;
+    return [200, leave];
+  });
+
+  // Attendance
+  mock.onGet(/\/attendance\/all/).reply(200, { data: dummyAttendance, success: true });
+  mock.onGet(/\/attendance/).reply(200, dummyAttendance);
+
+  // Finance
+  mock.onGet(/\/finance/).reply(200, dummyFinance);
+
+  // Reports
+  mock.onGet(/\/reports\/team/).reply(200, []);
+  mock.onGet(/\/reports\/my/).reply(200, []);
+  mock.onGet(/\/reports\/date\/.+/).reply(200, []);
 
   // Auth
   mock.onPost(/\/auth\/login/).reply(200, {
