@@ -249,6 +249,40 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   mock.onGet(/\/admin\/finance\/petty-cash/).reply(200, { data: [] });
   mock.onPost(/\/admin\/finance\/verify-pin/).reply(200, { success: true });
 
+  // Activity & Devices
+  const dummyDevices = [
+    { id: 'd1', deviceId: 'WIN-DESKTOP-001', deviceName: 'John\'s Desktop', os: 'Windows 11', appVersion: '1.2.0', lastSeenAt: new Date().toISOString(), isRevoked: false, user: dummyEmployees[0] },
+    { id: 'd2', deviceId: 'MAC-LAPTOP-002', deviceName: 'Sarah\'s MacBook', os: 'macOS Sonoma', appVersion: '1.2.0', lastSeenAt: new Date(Date.now() - 3600000).toISOString(), isRevoked: false, user: dummyEmployees[1] },
+    { id: 'd3', deviceId: 'WIN-LAPTOP-003', deviceName: 'Old Laptop', os: 'Windows 10', appVersion: '1.1.0', lastSeenAt: new Date(Date.now() - 86400000 * 5).toISOString(), isRevoked: true, user: dummyEmployees[2] }
+  ];
+  mock.onGet(/\/activity\/devices/).reply(200, dummyDevices);
+  mock.onPost(/\/activity\/devices\/.+\/revoke/).reply((config) => {
+    const id = config.url?.split('/')[3];
+    const device = dummyDevices.find(d => d.id === id);
+    if (device) device.isRevoked = true;
+    return [200, { success: true }];
+  });
+
+  const dummyIdleRequests = [
+    { id: 'req1', userId: 'emp1', user: dummyEmployees[1], idleStartedAt: new Date(Date.now() - 7200000).toISOString(), reason: 'Power cut at my place.', status: 'PENDING_APPROVAL' },
+    { id: 'req2', userId: 'emp2', user: dummyEmployees[2], idleStartedAt: new Date(Date.now() - 86400000).toISOString(), reason: 'Had to step away for a quick meeting.', status: 'APPROVED' },
+    { id: 'req3', userId: 'emp3', user: dummyEmployees[3], idleStartedAt: new Date(Date.now() - 172800000).toISOString(), reason: 'Went for a 2 hour lunch.', status: 'REJECTED' }
+  ];
+  mock.onGet(/\/activity\/resume-requests/).reply(200, dummyIdleRequests);
+  mock.onPut(/\/activity\/resume-requests\/.+\/approve/).reply((config) => {
+    const id = config.url?.split('/')[3];
+    const req = dummyIdleRequests.find(r => r.id === id);
+    if (req) req.status = 'APPROVED';
+    return [200, { success: true }];
+  });
+  mock.onPut(/\/activity\/resume-requests\/.+\/reject/).reply((config) => {
+    const id = config.url?.split('/')[3];
+    const req = dummyIdleRequests.find(r => r.id === id);
+    if (req) req.status = 'REJECTED';
+    return [200, { success: true }];
+  });
+
+
   // Analytics
   mock.onGet(/\/analytics\/team-productivity/).reply(200, [
     { id: 't1', name: 'Frontend', totalTasks: 45, completed: 38, completionRate: 84, overdue: 2, score: 92 },
