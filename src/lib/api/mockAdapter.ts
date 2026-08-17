@@ -320,20 +320,7 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     { name: 'Bob Jones', attendanceHours: 150, trackedHours: 148, missingHours: 2, efficiency: 98 },
     { name: 'Charlie Brown', attendanceHours: 160, trackedHours: 120, missingHours: 40, efficiency: 75 }
   ]);
-  mock.onGet(/\/analytics\/employees/).reply(200, {
-    total: 24,
-    active: 22,
-    byDepartment: [{ name: 'Engineering', count: 12 }, { name: 'Design', count: 4 }]
-  });
-  mock.onGet(/\/analytics\/attendance/).reply(200, {
-    present: 20, absent: 2, halfDay: 0, late: 2, onLeave: 0, trend: []
-  });
-  mock.onGet(/\/analytics\/tasks/).reply(200, {
-    total: 150, completed: 90, inProgress: 40, overdue: 20, topPerformers: []
-  });
-  mock.onGet(/\/analytics\/productivity/).reply(200, {
-    sodsSubmitted: 22, eodsSubmitted: 18, pendingEods: []
-  });
+
 
   // Chat
   const dummyChatRooms = [
