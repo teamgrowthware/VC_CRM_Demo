@@ -297,24 +297,13 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   });
 
   // Analytics
-  mock.onGet(/\/analytics\/team-productivity/).reply(200, [
-    { id: 't1', name: 'Frontend', totalTasks: 45, completed: 38, completionRate: 84, overdue: 2, score: 92 },
-    { id: 't2', name: 'Backend', totalTasks: 50, completed: 42, completionRate: 84, overdue: 3, score: 88 },
-    { id: 't3', name: 'Design', totalTasks: 20, completed: 18, completionRate: 90, overdue: 0, score: 95 }
-  ]);
+
   mock.onGet(/\/analytics\/project-health/).reply(200, {
     onTime: 12,
     late: 2,
     pending: 5
   });
-  mock.onGet(/\/analytics\/projects/).reply(200, {
-    total: 19,
-    active: 14,
-    completed: 5,
-    nearingDeadline: [
-      { id: 'p1', name: 'CRM Revamp', deadline: new Date(Date.now() + 86400000 * 3).toISOString(), status: 'ACTIVE', manager: { name: 'John Doe' } }
-    ]
-  });
+
   mock.onGet(/\/analytics\/efficiency/).reply(200, [
     { name: 'Alice Smith', attendanceHours: 160, trackedHours: 145, missingHours: 15, efficiency: 90 },
     { name: 'Bob Jones', attendanceHours: 150, trackedHours: 148, missingHours: 2, efficiency: 98 },
