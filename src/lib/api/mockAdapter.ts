@@ -589,6 +589,75 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     }
   });
 
+  // Client Portal Data
+  const dummyClientProjects = [
+    {
+      id: 'proj1', projectId: 'PRJ-2026-001', name: 'E-Commerce Platform',
+      description: 'Building a fully responsive B2B platform.',
+      status: 'ACTIVE', startDate: '2026-06-01', deadline: '2026-12-31', progress: 45,
+      taskCounts: { total: 10, completed: 4, inProgress: 3, testing: 1, todo: 2 },
+      tasks: [
+        { id: 't1', title: 'Design System', status: 'COMPLETED', priority: 'HIGH' },
+        { id: 't2', title: 'Payment Gateway Integration', status: 'IN_PROGRESS', priority: 'URGENT' },
+        { id: 't3', title: 'User Authentication', status: 'TESTING', priority: 'HIGH' }
+      ],
+      milestones: [
+        { id: 'm1', title: 'Phase 1 MVP', status: 'PAID', amount: 5000, paidAmount: 5000 },
+        { id: 'm2', title: 'Phase 2 Beta', status: 'PENDING', amount: 10000, paidAmount: 0 }
+      ],
+      team: [
+        { id: 'emp1', name: 'John Doe', role: 'Project Manager' },
+        { id: 'emp2', name: 'Sarah Smith', role: 'Lead Developer' }
+      ]
+    }
+  ];
+
+  const dummyClientInvoices = [
+    {
+      id: 'inv1', clientName: 'Acme Corp', projectId: 'PRJ-2026-001', amount: 5000,
+      status: 'PAID', dueDate: '2026-07-01', createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+      items: [{ id: 'item1', description: 'Phase 1 Development', total: 5000 }],
+      project: { id: 'proj1', name: 'E-Commerce Platform', projectId: 'PRJ-2026-001' }
+    },
+    {
+      id: 'inv2', clientName: 'Acme Corp', projectId: 'PRJ-2026-001', amount: 10000,
+      status: 'SENT', dueDate: '2026-09-01', createdAt: new Date().toISOString(),
+      items: [{ id: 'item2', description: 'Phase 2 Development Advance', total: 10000 }],
+      project: { id: 'proj1', name: 'E-Commerce Platform', projectId: 'PRJ-2026-001' }
+    }
+  ];
+
+  const dummyClientTickets = [
+    {
+      id: 'tkt1', ticketNo: 'TKT-1001', subject: 'Server Down Issue',
+      description: 'The staging server is throwing a 502 Bad Gateway.',
+      category: 'TECHNICAL', priority: 'HIGH', status: 'RESOLVED',
+      project: { id: 'proj1', name: 'E-Commerce Platform' },
+      replies: [{ id: 'rep1', ticketId: 'tkt1', senderType: 'ADMIN', senderId: 'admin1', senderName: 'Support Team', message: 'Resolved the proxy configuration issue.', createdAt: new Date().toISOString() }],
+      createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), updatedAt: new Date().toISOString()
+    }
+  ];
+
+  mock.onGet(/\/client\/projects\/.+/).reply((config) => {
+    const id = config.url?.split('/')[3];
+    return [200, { data: dummyClientProjects.find(p => p.id === id || p.projectId === id) || dummyClientProjects[0] }];
+  });
+  mock.onGet(/\/client\/projects/).reply(200, { data: dummyClientProjects });
+  
+  mock.onGet(/\/client\/invoices\/.+/).reply((config) => {
+    const id = config.url?.split('/')[3];
+    return [200, { data: dummyClientInvoices.find(i => i.id === id) || dummyClientInvoices[0] }];
+  });
+  mock.onGet(/\/client\/invoices/).reply(200, { data: dummyClientInvoices });
+  
+  mock.onGet(/\/client\/tickets\/.+/).reply((config) => {
+    const id = config.url?.split('/')[3];
+    return [200, { data: dummyClientTickets.find(t => t.id === id) || dummyClientTickets[0] }];
+  });
+  mock.onGet(/\/client\/tickets/).reply(200, { data: dummyClientTickets });
+  
+  mock.onGet(/\/client\/me/).reply(200, { data: { id: 'client1', name: 'Acme Corp', clientId: 'CL-001', email: 'contact@acmecorp.com' } });
+  
   mock.onGet(/\/client\/.*/).reply(200, { success: true, data: [] });
 
   // Generic Fallbacks to prevent UI crashes
