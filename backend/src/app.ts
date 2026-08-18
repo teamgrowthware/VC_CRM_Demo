@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes';
 import employeeRoutes from './routes/employee.routes';
 import attendanceRoutes from './routes/attendance.routes';
@@ -30,14 +32,14 @@ import announcementRoutes from './routes/announcement.routes';
 import eventRoutes from './routes/event.routes';
 import payslipRoutes from './routes/payslip.routes';
 import pushRoutes from './routes/push.routes';
+import timeRoutes from './routes/time.routes';
+import clientRoutes from './routes/client.routes';
+import invoiceRoutes from './routes/invoice.routes';
+import { authenticateToken, authorizeRoles } from './middleware/auth.middleware';
+import { authLimiter, registerLimiter } from './middleware/rateLimit.middleware';
+import { csrfProtect } from './middleware/csrf.middleware';
+import { ADMIN_EMAIL } from './lib/config';
 const app = express();
-
-// Diagnostic logging for all incoming requests
-app.use((req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  console.log(`[DEBUG] ${req.method} ${req.originalUrl} - Auth: ${authHeader ? (authHeader.substring(0, 15) + '...') : 'MISSING'}`);
-  next();
-});
 
 // Middleware
 const allowedOrigins = process.env.FRONTEND_URL 
@@ -52,6 +54,8 @@ if (!allowedOrigins.includes('http://localhost:3000')) {
   allowedOrigins.push('http://localhost:3000');
 }
 
+app.use(helmet());
+app.set('trust proxy', 1);
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
@@ -68,11 +72,20 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-CSRF-Token'],
   optionsSuccessStatus: 204
 }));
 app.use(express.json());
+app.use(cookieParser());
 app.use('/uploads', express.static('public/uploads'));
+
+// Rate limiting for authentication endpoints (brute-force protection)
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/client-login', authLimiter);
+app.use('/api/auth/register', registerLimiter);
+
+// CSRF protection for cookie-authenticated mutating requests
+app.use('/api', csrfProtect);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -105,6 +118,10 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/payslips', payslipRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/time', timeRoutes);
+app.use('/api/clients', clientRoutes.management);
+app.use('/api/client', clientRoutes.portal);
+app.use('/api/invoices', invoiceRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -116,7 +133,7 @@ app.get('/', (req, res) => {
   res.status(200).send('Vortex Cubes CRM API is running');
 });
 
-app.get('/api/auth/force-seed', async (req, res) => {
+app.get('/api/auth/force-seed', authenticateToken, authorizeRoles('ADMIN'), async (req, res) => {
   try {
     const prisma = require('./lib/prisma').default;
     const bcrypt = require('bcryptjs');
@@ -125,28 +142,61 @@ app.get('/api/auth/force-seed', async (req, res) => {
     await prisma.employee.deleteMany({
       where: {
         OR: [
-          { email: 'admin@vortexcubes.com' },
+          { email: ADMIN_EMAIL || '' },
           { employeeId: 'VC001' }
         ]
       }
     });
 
-    const adminPassword = await bcrypt.hash('Admin@123', 10);
+    let seedPassword = process.env.ADMIN_SEED_PASSWORD;
+    let generated = false;
+    if (!seedPassword) {
+      seedPassword = require('crypto').randomBytes(12).toString('base64url');
+      generated = true;
+    }
+    const adminPassword = await bcrypt.hash(seedPassword, 10);
     const updated = await prisma.employee.create({
       data: {
         employeeId: 'VC001',
         name: 'Vortex Admin',
-        email: 'admin@vortexcubes.com',
+        email: ADMIN_EMAIL || 'admin@vortexcubes.com',
         password: adminPassword,
         designation: 'System Administrator',
         role: 'ADMIN',
         joiningDate: new Date(),
       }
     });
-    res.json({ success: true, message: "Admin reset successful. Login with Admin@123" });
+
+    if (generated) {
+      console.log('[force-seed] No ADMIN_SEED_PASSWORD set. Generated a random admin password (shown once).');
+    }
+
+    try {
+      await prisma.activityLog.create({
+        data: {
+          type: 'ADMIN_RESET',
+          message: `${(req as any).user?.name || 'Admin'} reset the admin account`,
+          entityType: 'AUTH',
+          entityId: updated.id,
+          userId: (req as any).user?.id,
+        }
+      });
+    } catch (auditErr) {
+      console.error('[AUDIT] force-seed audit write failed:', auditErr);
+    }
+
+    res.json({ success: true, message: "Admin reset successful." });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Multer / upload error handling
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err?.name === 'MulterError' || err?.message?.startsWith('Unsupported file type')) {
+    return res.status(400).json({ error: err.message });
+  }
+  next(err);
 });
 
 // Error handling middleware

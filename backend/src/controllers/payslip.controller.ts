@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
-import { format, startOfMonth, endOfMonth, getDaysInMonth, differenceInDays, isAfter } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { calculateEmployeePayroll } from '../services/payroll.service';
 
 interface AuthRequest extends Request {
   user?: any;
@@ -113,47 +114,12 @@ export const generateAllPayslips = async (req: AuthRequest, res: Response): Prom
     }
 
     const generated: any[] = [];
-    const daysInMonth = getDaysInMonth(new Date(y, m - 1));
 
     for (const payroll of payrolls) {
       const emp = payroll.employee;
-      const baseSalary = payroll.baseSalary || emp?.baseSalary || 0;
-      const perDaySalary = daysInMonth > 0 ? baseSalary / daysInMonth : 0;
 
-      // Joining pro-rata deduction
-      let joiningDeduction = 0;
-      if (emp?.joiningDate && isAfter(emp.joiningDate, startDate)) {
-        const daysBeforeJoining = differenceInDays(emp.joiningDate, startDate);
-        joiningDeduction = Math.round(daysBeforeJoining * perDaySalary);
-      }
-
-      const attendanceDeduction = Math.round((payroll.leaveDays || 0) * perDaySalary);
-      const halfDayDeduction = Math.round((payroll.halfDays || 0) * (perDaySalary / 2));
-
-      const salaryAddons = await prisma.salaryAddon.findMany({
-        where: { employeeId: payroll.employeeId, month: m, year: y },
-        orderBy: { date: 'desc' }
-      });
-      const salaryDeductions = await prisma.salaryDeduction.findMany({
-        where: { employeeId: payroll.employeeId, month: m, year: y },
-        orderBy: { date: 'desc' }
-      });
-      const penalties = await prisma.penalty.findMany({
-        where: {
-          employeeId: payroll.employeeId,
-          date: { gte: startDate, lte: endDate }
-        },
-        orderBy: { date: 'desc' }
-      });
-
-      const totalAddons = salaryAddons.reduce((sum, a) => sum + a.amount, 0);
-      const totalCustomDeductions = salaryDeductions.reduce((sum, d) => sum + d.amount, 0);
-      const totalPenalties = payroll.totalPenalties || penalties.reduce((sum, p) => sum + p.amount, 0);
-      const totalDeductions = Math.round(
-        attendanceDeduction + halfDayDeduction + joiningDeduction + totalCustomDeductions + totalPenalties
-      );
-
-      const netSalary = Math.max(0, Math.round(baseSalary + totalAddons - totalDeductions));
+      // Use payroll service as single source of truth
+      const result = await calculateEmployeePayroll(payroll.employeeId, m, y);
 
       const data: any = {
         employee: {
@@ -163,33 +129,56 @@ export const generateAllPayslips = async (req: AuthRequest, res: Response): Prom
           department: emp?.department?.name || null,
           joiningDate: emp?.joiningDate || null
         },
-        baseSalary,
-        perDaySalary: Math.round(perDaySalary * 100) / 100,
+        baseSalary: result.baseSalary,
+        perDaySalary: result.perDaySalary,
         attendance: {
-          presentDays: payroll.presentDays,
-          absentDays: payroll.leaveDays,
-          halfDays: payroll.halfDays,
-          lateMarks: payroll.lateMarks,
-          productiveHours: payroll.productiveHours,
-          overtimeHours: payroll.overtimeHours
+          presentDays: result.presentDays,
+          absentDays: result.absentDays,
+          halfDays: result.halfDays,
+          lateMarks: result.lateMarks,
+          productiveHours: result.productiveHours,
+          overtimeHours: result.overtimeHours
         },
         earnings: {
-          baseSalary,
-          totalAddons,
-          addons: salaryAddons.map(a => ({ type: a.type, amount: a.amount, reason: a.reason })),
-          grossEarnings: Math.round(baseSalary + totalAddons)
+          baseSalary: result.baseSalary,
+          overtimePay: result.overtimePay,
+          totalAddons: result.totalAddons,
+          addons: result.addons.map(a => ({ type: a.type, amount: a.amount, reason: a.reason })),
+          grossEarnings: result.grossEarnings
         },
         deductions: {
-          attendanceDeduction,
-          halfDayDeduction,
-          joiningDeduction,
-          totalCustomDeductions,
-          customDeductions: salaryDeductions.map(d => ({ type: d.type, amount: d.amount, reason: d.reason })),
-          totalPenalties,
-          penalties: penalties.map(p => ({ amount: p.amount, reason: p.reason })),
-          totalDeductions
+          attendanceDeduction: result.attendanceDeductions,
+          halfDayDeduction: result.deductionBreakdown
+            .filter(d => d.type === 'HALFDAY')
+            .reduce((sum, d) => sum + d.amount, 0),
+          joiningDeduction: result.joiningDeduction,
+          totalCustomDeductions: result.totalCustomDeductions,
+          customDeductions: result.customDeductions.map(d => ({ type: d.type, amount: d.amount, reason: d.reason })),
+          totalPenalties: result.totalPenalties,
+          penalties: result.deductionBreakdown
+            .filter(d => d.type === 'PENALTY')
+            .map(d => ({ amount: d.amount, reason: d.label })),
+          totalDeductions: result.totalDeductions
         },
-        netSalary
+        leaves: result.leaveDetails.map(l => ({
+          id: l.id,
+          leaveType: l.leaveType,
+          startDate: l.startDate,
+          endDate: l.endDate,
+          numberOfDays: l.numberOfDays,
+          reason: l.reason,
+          isPaid: l.isPaid,
+          status: l.status
+        })),
+        paidLeaveDays: result.paidLeaveDays,
+        unpaidLeaveDays: result.unpaidLeaveDays,
+        deductionBreakdown: result.deductionBreakdown.map(d => ({
+          type: d.type,
+          label: d.label,
+          date: d.date,
+          amount: d.amount
+        })),
+        netSalary: result.netSalary
       };
 
       const payslip = await prisma.payslip.upsert({
@@ -203,7 +192,7 @@ export const generateAllPayslips = async (req: AuthRequest, res: Response): Prom
         update: {
           month: monthLabel,
           period,
-          netSalary,
+          netSalary: result.netSalary,
           data
         },
         create: {
@@ -212,7 +201,7 @@ export const generateAllPayslips = async (req: AuthRequest, res: Response): Prom
           period,
           monthInt: m,
           yearInt: y,
-          netSalary,
+          netSalary: result.netSalary,
           data
         }
       });

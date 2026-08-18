@@ -1,14 +1,24 @@
 'use client';
 
-import { Suspense, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const roleParam = searchParams.get('role');
   
-  const [email, setEmail] = useState('');
+  const roleEmailMap: Record<string, string> = {
+    admin: 'admin@vortexcubes.com',
+    hr: 'hr@vortexcubes.com',
+    manager: 'jane@vortexcubes.com',
+    project_manager: 'pm@vortexcubes.com',
+    employee: 'john@vortexcubes.com',
+  };
+  
+  const [email, setEmail] = useState(() => roleParam ? (roleEmailMap[roleParam] || '') : '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,15 +38,16 @@ function LoginForm() {
         password,
       });
 
-      if (response.data.employee) {
-        localStorage.clear(); // Wipe all old IDs first
-        localStorage.setItem('user', JSON.stringify(response.data.employee));
+      const employee = response.data.employee;
+      if (employee && employee.role) {
+        localStorage.clear();
+        localStorage.setItem('user', JSON.stringify(employee));
         if (response.data.csrfToken) {
           setCsrfToken(response.data.csrfToken);
         }
-        toast.success('Login successful!');
+        toast.success(`Welcome, ${employee.name || employee.firstName || 'User'}!`);
         
-        const role = response.data.employee.role;
+        const role = employee.role;
         if (role === 'ADMIN') {
           router.push('/dashboard/admin');
         } else if (role === 'HR') {
@@ -46,6 +57,8 @@ function LoginForm() {
         } else {
            router.push('/dashboard/employee');
         }
+      } else {
+        toast.error('Login failed: Invalid response from server');
       }
     } catch (error: any) {
       console.error("Login error:", error);
@@ -61,7 +74,7 @@ function LoginForm() {
     setIsLoading(true);
     try {
       const { default: apiClient } = await import('@/lib/api/apiClient');
-      const response = await apiClient.post('/auth/forgot-password');
+      const response = await apiClient.post('/auth/forgot-password', { email });
       toast.success(response.data.message || 'If the account exists, an OTP has been sent.');
       setMode('reset');
     } catch (error: any) {
@@ -199,8 +212,22 @@ function LoginForm() {
 
           {mode === 'forgot' && (
             <form onSubmit={handleForgotPassword} className="space-y-5">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 ml-1">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-zinc-50/50 dark:bg-black/50 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all placeholder:text-zinc-400"
+                    placeholder="you@company.com"
+                    required
+                  />
+                </div>
+              </div>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                A one-time password (OTP) will be sent to the registered admin email address.
+                A one-time password (OTP) will be sent to the registered email address.
                 The OTP is valid for 10 minutes and can only be used once.
               </p>
               <button

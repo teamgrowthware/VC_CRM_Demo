@@ -20,6 +20,7 @@ import {
   updateFinancePin
 } from '../controllers/finance.controller';
 import { authenticateToken, authorizeRoles } from '../middleware/auth.middleware';
+import { upload } from '../middleware/upload.middleware';
 
 const router = Router();
 
@@ -31,7 +32,7 @@ router.use(authorizeRoles('ADMIN', 'HR', 'MANAGER'));
 router.get('/overview', getFinanceOverview);
 router.get('/payroll', getPayrollRecords);
 router.post('/payroll/generate', authorizeRoles('ADMIN'), generatePayroll);
-router.patch('/payroll/:id/pay', authorizeRoles('ADMIN'), paySalary);
+router.patch('/payroll/:id/pay', authorizeRoles('ADMIN'), upload.single('paymentProof'), paySalary);
 
 router.post('/deductions', addDeduction);
 router.get('/deductions', getSalaryDeductions);

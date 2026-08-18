@@ -31,9 +31,11 @@ router.post('/:id/documents', upload.single('file'), ProjectController.uploadPro
 
 // Project Finance & Milestones
 router.get('/finance/analytics', authorizeRoles('ADMIN', 'MANAGER', 'PROJECT_MANAGER'), ProjectFinanceController.getFinancialAnalytics);
+router.get('/milestones/all', authorizeRoles('ADMIN', 'MANAGER', 'PROJECT_MANAGER'), ProjectFinanceController.getAllMilestones);
 router.get('/:id/milestones', authorizeRoles('ADMIN', 'MANAGER', 'PROJECT_MANAGER'), ProjectFinanceController.getProjectMilestones);
 router.post('/:id/milestones', authorizeRoles('ADMIN', 'PROJECT_MANAGER'), ProjectFinanceController.createMilestone);
 router.put('/milestones/:milestoneId', authorizeRoles('ADMIN', 'PROJECT_MANAGER'), ProjectFinanceController.updateMilestone);
+router.delete('/milestones/:milestoneId', authorizeRoles('ADMIN', 'PROJECT_MANAGER'), ProjectFinanceController.deleteMilestone);
 router.post('/:id/payments', authorizeRoles('ADMIN', 'PROJECT_MANAGER'), ProjectFinanceController.recordPayment);
 router.post('/:id/finance/finalize', authorizeRoles('ADMIN', 'PROJECT_MANAGER'), ProjectFinanceController.finalizeProjectFinance);
 

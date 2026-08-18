@@ -11,5 +11,6 @@ router.post('/', LeaveController.applyLeave);
 router.get('/my', LeaveController.getMyLeaves);
 router.patch('/:id/status', authorizeRoles('ADMIN', 'HR', 'MANAGER', 'PROJECT_MANAGER'), LeaveController.updateLeaveStatus);
 router.put('/:id/status', authorizeRoles('ADMIN', 'HR', 'MANAGER', 'PROJECT_MANAGER'), LeaveController.updateLeaveStatus); // Keep PUT for compatibility
+router.patch('/:id/mark-paid', authorizeRoles('ADMIN', 'HR'), LeaveController.markLeaveAsPaid);
 
 export default router;

@@ -60,7 +60,7 @@ export default function AdminDashboardCore() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const fetchAllData = useCallback(async () => {
-    if (!user || user.role !== 'ADMIN') return;
+    if (!user) return;
 
     try {
       // Fetch Top KPIs
@@ -142,7 +142,13 @@ export default function AdminDashboardCore() {
     <div className="flex flex-col gap-6 w-full pb-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Admin Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">
+            {user?.role === 'HR' ? 'HR Dashboard' :
+             user?.role === 'MANAGER' || user?.role === 'PROJECT_MANAGER' ? 'Manager Dashboard' :
+             user?.role === 'EMPLOYEE' ? 'Employee Dashboard' :
+             user?.role === 'CLIENT' ? 'Client Dashboard' :
+             'Admin Dashboard'}
+          </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Enterprise overview and live organizational metrics.
           </p>

@@ -233,14 +233,21 @@ export const paySalary = async (req: AuthRequest, res: Response): Promise<void> 
   try {
     const { id } = req.params;
     const { paymentMode, paymentDate } = req.body;
+    const file = req.file;
+
+    const updateData: any = {
+      status: 'PAID',
+      paymentMode,
+      paymentDate: paymentDate ? new Date(paymentDate) : new Date()
+    };
+
+    if (file) {
+      updateData.paymentProof = `/uploads/${file.filename}`;
+    }
 
     const payroll = await prisma.payroll.update({
       where: { id: id as string },
-      data: {
-        status: 'PAID',
-        paymentMode,
-        paymentDate: paymentDate ? new Date(paymentDate) : new Date()
-      }
+      data: updateData
     });
 
     res.status(200).json({ success: true, message: 'Salary marked as paid', data: payroll });

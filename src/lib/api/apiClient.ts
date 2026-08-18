@@ -84,10 +84,4 @@ apiClient.interceptors.response.use(
 
 export const getAuthHeaders = () => ({});
 
-import { setupMockAdapter } from './mockAdapter';
-
-if (typeof window !== 'undefined' || process.env.NODE_ENV === 'development') {
-  setupMockAdapter(apiClient);
-}
-
 export default apiClient;

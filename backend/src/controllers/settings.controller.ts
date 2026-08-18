@@ -24,6 +24,9 @@ const ALL_NOTIFICATION_TYPES = [
   'ENTRY_REJECTED',
   'LOW_TRACKED_HOURS',
   'PENDING_APPROVAL',
+  'DEADLINE_APPROACHING',
+  'LEAVE_APPROVED',
+  'LEAVE_REJECTED',
 ];
 
 export const getSettings = async (req: Request, res: Response) => {
@@ -44,14 +47,41 @@ export const getSettings = async (req: Request, res: Response) => {
   }
 };
 
-export const updateSettings = async (req: Request, res: Response) => {
+export const updateSettings = async (req: AuthRequest, res: Response) => {
   try {
-    const data = req.body;
+    const allowedFields = [
+      'officeStartTime', 'lateThreshold', 'lateComingEnabled', 'halfDayEnabled',
+      'lunchDuration', 'breakDuration', 'sodReminderTime', 'eodReminderTime',
+      'idleTimeoutMinutes', 'idleWarningSeconds', 'autoPauseTimerEnabled',
+      'requireApprovalToResume', 'desktopAppEnabledRoles', 'heartbeatIntervalSeconds',
+      'autoStartEnabled', 'ruleBookText', 'financePin',
+    ];
+    const data: Record<string, any> = {};
+    for (const key of allowedFields) {
+      if (req.body[key] !== undefined) {
+        data[key] = req.body[key];
+      }
+    }
     const settings = await prisma.systemSettings.upsert({
       where: { id: 'default' },
       update: data,
       create: { ...data, id: 'default' }
     });
+
+    try {
+      await prisma.activityLog.create({
+        data: {
+          type: 'SETTINGS_UPDATED',
+          message: `${req.user?.name || 'Admin'} updated system settings`,
+          entityType: 'SETTINGS',
+          entityId: 'default',
+          userId: req.user?.id,
+        }
+      });
+    } catch (auditErr) {
+      console.error('[AUDIT] settings update audit write failed:', auditErr);
+    }
+
     res.json(settings);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update settings' });

@@ -23,7 +23,7 @@ export const heartbeat = async (req: AuthRequest, res: Response) => {
       where: { userId },
       update: {
         lastActivityAt: new Date(),
-        status: req.user?.role === 'ADMIN' ? 'ACTIVE' : 'ACTIVE', // Force ACTIVE for everyone in this endpoint for now, or keep it as is
+        status: 'ACTIVE',
         deviceInfo: deviceId || undefined
       },
       create: {

@@ -3,7 +3,7 @@ import { Server as HttpServer } from 'http';
 import jwt from 'jsonwebtoken';
 
 let io: Server | null = null;
-import { JWT_SECRET } from '../lib/config';
+import { requireJwtSecret } from '../lib/config';
 
 export const initSocket = (server: HttpServer) => {
   io = new Server(server, {
@@ -18,11 +18,17 @@ export const initSocket = (server: HttpServer) => {
 
   io.use((socket, next) => {
     try {
-      const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
+      const cookies = socket.handshake.headers?.cookie;
+      let cookieToken: string | null = null;
+      if (cookies) {
+        const match = cookies.match(/(?:^|;\s*)token=([^;]+)/);
+        cookieToken = match ? decodeURIComponent(match[1]) : null;
+      }
+      const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1] || cookieToken;
       if (!token) {
         return next(new Error('Authentication Error'));
       }
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const decoded = jwt.verify(token, requireJwtSecret()) as any;
       socket.data.user = decoded;
       next();
     } catch (e) {
@@ -44,8 +50,9 @@ export const initSocket = (server: HttpServer) => {
       // Fetch from Prisma dynamically ignoring caching to ensure strict membership
       try {
         const prisma = (await import('../lib/prisma')).default;
-        const membership = await prisma.chatMember.findUnique({
-          where: { roomId_employeeId: { roomId, employeeId: userId } },
+        const isClient = socket.data.user?.role === 'CLIENT';
+        const membership = await prisma.chatMember.findFirst({
+          where: isClient ? { roomId, clientId: userId } : { roomId, employeeId: userId },
         });
         
         if (membership) {

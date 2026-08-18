@@ -1,9 +1,19 @@
 import './lib/config';
 import app from './app';
-import { PORT } from './lib/config';
+import { PORT, ADMIN_EMAIL } from './lib/config';
 
 import prisma from './lib/prisma';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+
+const resolveSeedPassword = (): string => {
+  if (process.env.ADMIN_SEED_PASSWORD) {
+    return process.env.ADMIN_SEED_PASSWORD;
+  }
+  const generated = crypto.randomBytes(12).toString('base64url');
+  console.log('No ADMIN_SEED_PASSWORD set. Generated a random admin password (shown once).');
+  return generated;
+};
 
 const seedDatabase = async () => {
   try {
@@ -21,24 +31,30 @@ const seedDatabase = async () => {
       }).catch(() => {});
     }
 
-    const adminPassword = await bcrypt.hash('Admin@123', 10);
-    
-    // Always ensure the admin account exists and password is set
-    await prisma.employee.upsert({
-      where: { email: 'admin@vortexcubes.com' },
-      update: { password: adminPassword, role: 'ADMIN' },
-      create: {
-        employeeId: 'VC001',
-        name: 'Vortex Admin',
-        email: 'admin@vortexcubes.com',
-        password: adminPassword,
-        designation: 'System Administrator',
-        role: 'ADMIN',
-        joiningDate: new Date(),
-      }
+    const existingAdmin = await prisma.employee.findUnique({
+      where: { email: ADMIN_EMAIL || 'admin@vortexcubes.com' },
     });
 
-    console.log('Seed completed successfully: Admin credentials initialized.');
+    if (!existingAdmin) {
+      const adminPassword = await bcrypt.hash(resolveSeedPassword(), 10);
+
+      await prisma.employee.create({
+        data: {
+          employeeId: 'VC001',
+          name: 'Vortex Admin',
+          email: ADMIN_EMAIL || 'admin@vortexcubes.com',
+          password: adminPassword,
+          designation: 'System Administrator',
+          role: 'ADMIN',
+          joiningDate: new Date(),
+        }
+      });
+
+      console.log('Seed completed successfully: Admin account created.');
+    } else {
+      // Never overwrite the existing admin password on restart.
+      console.log('Seed completed successfully: Admin account already exists (password untouched).');
+    }
   } catch (error) {
     console.error('Seed error:', error);
   }
@@ -68,11 +84,3 @@ process.on('SIGTERM', () => {
     process.exit(0);
   });
 });
-
-// triggered restart
-
-// triggered restart
-
-// triggered restart
-
-// triggered restart

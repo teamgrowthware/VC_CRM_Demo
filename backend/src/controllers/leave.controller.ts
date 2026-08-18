@@ -98,6 +98,56 @@ export const getAllLeaves = async (req: AuthRequest, res: Response): Promise<voi
   }
 };
 
+export const markLeaveAsPaid = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const { isPaid } = req.body;
+
+    if (typeof isPaid !== 'boolean') {
+      res.status(400).json({ error: 'isPaid must be a boolean' });
+      return;
+    }
+
+    const existingLeave = await prisma.leave.findUnique({ where: { id } });
+    if (!existingLeave) {
+      res.status(404).json({ error: 'Leave not found' });
+      return;
+    }
+
+    if (existingLeave.status !== 'APPROVED') {
+      res.status(400).json({ error: 'Only approved leaves can be marked as paid/unpaid' });
+      return;
+    }
+
+    const user = req.user;
+    if (!['ADMIN', 'HR'].includes(user.role)) {
+      res.status(403).json({ error: 'Only Admin or HR can mark leaves as paid' });
+      return;
+    }
+
+    const updatedLeave = await prisma.leave.update({
+      where: { id },
+      data: { isPaid },
+    });
+
+    await logActivity(
+      user.id,
+      isPaid ? 'LEAVE_MARKED_PAID' : 'LEAVE_MARKED_UNPAID',
+      `${isPaid ? 'marked' : 'unmarked'} leave as paid for employee ${existingLeave.employeeId}`,
+      'LEAVE',
+      id
+    );
+
+    res.status(200).json({
+      message: `Leave ${isPaid ? 'marked as paid' : 'marked as unpaid'}`,
+      leave: updatedLeave,
+    });
+  } catch (error) {
+    console.error('Mark leave as paid error:', error);
+    res.status(500).json({ error: 'Failed to update leave payment status' });
+  }
+};
+
 export const updateLeaveStatus = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;

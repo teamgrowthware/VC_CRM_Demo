@@ -69,6 +69,35 @@ export const sendTaskNotification = async (to: string, taskName: string, message
   }
 };
 
+export const sendOtpEmail = async (to: string, otp: string) => {
+  const mailOptions = {
+    from: SMTP_CONFIG.from,
+    to,
+    subject: 'Vortex Cubes CRM - Password Reset OTP',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+        <h2 style="color: #4f46e5;">Password Reset Request</h2>
+        <p>We received a request to reset your admin account password.</p>
+        <p>Use the following One-Time Password (OTP) to complete the reset. It expires in 10 minutes and can only be used once.</p>
+        <div style="margin: 24px 0; padding: 20px; background-color: #f3f4f6; border-radius: 10px; text-align: center;">
+          <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #1f2937;">${otp}</span>
+        </div>
+        <p style="font-size: 13px; color: #6b7280;">If you did not request this, you can safely ignore this email. Your password will not be changed.</p>
+        <p style="margin-top: 20px; font-size: 12px; color: #9ca3af;">&copy; 2026 Vortex Cubes CRM. All rights reserved.</p>
+      </div>
+    `,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('OTP email sent:', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('Error sending OTP email:', error);
+    return false;
+  }
+};
+
 export const sendGenericEmail = async (to: string, subject: string, message: string) => {
   const mailOptions = {
     from: SMTP_CONFIG.from,

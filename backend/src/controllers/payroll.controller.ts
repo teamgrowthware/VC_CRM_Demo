@@ -44,6 +44,9 @@ export const getMyPayroll = async (req: AuthRequest, res: Response): Promise<voi
         netSalary: result.netSalary,
         penalties,
         deductionBreakdown: result.deductionBreakdown,
+        leaveDetails: result.leaveDetails,
+        paidLeaveDays: result.paidLeaveDays,
+        unpaidLeaveDays: result.unpaidLeaveDays,
         absentDays: result.absentDays,
         halfDays: result.halfDays,
         presentDays: result.presentDays
@@ -122,7 +125,10 @@ export const getGroupPayroll = async (req: AuthRequest, res: Response): Promise<
         joiningDeduction: result.joiningDeduction,
         grossEarnings: result.grossEarnings,
         netSalary: result.netSalary,
-        deductions: result.deductionBreakdown
+        deductions: result.deductionBreakdown,
+        leaveDetails: result.leaveDetails,
+        paidLeaveDays: result.paidLeaveDays,
+        unpaidLeaveDays: result.unpaidLeaveDays
       });
     }
 

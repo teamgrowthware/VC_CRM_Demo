@@ -70,6 +70,7 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
         sprintId,
         startDate: startDate ? new Date(startDate) : null,
         deadline: deadline ? new Date(deadline) : null,
+        completedAt: status === 'COMPLETED' ? new Date() : null,
       },
       include: {
         assignedTo: { select: { id: true, name: true, email: true } },
@@ -127,6 +128,7 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
         assignedId: updates.assignedId === null ? null : updates.assignedId,
         startDate: updates.startDate ? new Date(updates.startDate) : undefined,
         deadline: updates.deadline ? new Date(updates.deadline) : undefined,
+        completedAt: updates.status === 'COMPLETED' ? new Date() : updates.status ? null : undefined,
       },
       include: {
         assignedTo: { select: { id: true, name: true, email: true } },
@@ -171,11 +173,11 @@ export const changeTaskStatus = async (req: AuthRequest, res: Response): Promise
       status: z.enum(['TODO', 'IN_PROGRESS', 'TESTING', 'COMPLETED'])
     }).parse(req.body);
 
-    // In a real scenario we might limit who can drag/drop based on task assignment, but currently left open for team
     const updatedTask = await prisma.task.update({
       where: { id: id as string },
       data: { 
-        status
+        status,
+        completedAt: status === 'COMPLETED' ? new Date() : null
       },
       include: {
         assignedTo: { select: { id: true, name: true, email: true } },

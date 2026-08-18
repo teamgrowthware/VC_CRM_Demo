@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as ChatController from '../controllers/chat.controller';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { authenticateToken, authorizeRoles } from '../middleware/auth.middleware';
 import { chatUpload } from '../middleware/upload.middleware';
 
 const router = Router();
@@ -8,6 +8,7 @@ const router = Router();
 router.use(authenticateToken);
 
 router.post('/rooms', ChatController.createChatRoom);
+router.get('/clients', authorizeRoles('ADMIN', 'MANAGER', 'HR', 'EMPLOYEE', 'PROJECT_MANAGER'), ChatController.getChatClients);
 router.get('/rooms', ChatController.getMyChatRooms);
 router.post('/messages', ChatController.sendMessage);
 router.get('/rooms/:roomId/messages', ChatController.getMessagesByRoom);

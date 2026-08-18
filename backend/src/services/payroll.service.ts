@@ -21,6 +21,17 @@ export interface PayrollAddonItem {
   date: Date;
 }
 
+export interface LeaveDetailItem {
+  id: string;
+  leaveType: string;
+  startDate: Date;
+  endDate: Date;
+  numberOfDays: number;
+  reason: string;
+  isPaid: boolean;
+  status: string;
+}
+
 export interface EmployeePayrollResult {
   employeeId: string;
   baseSalary: number;
@@ -44,6 +55,9 @@ export interface EmployeePayrollResult {
   totalDeductions: number;
   grossEarnings: number;
   netSalary: number;
+  leaveDetails: LeaveDetailItem[];
+  paidLeaveDays: number;
+  unpaidLeaveDays: number;
 }
 
 /**
@@ -94,9 +108,64 @@ export async function calculateEmployeePayroll(
   ).length;
   const absentRecords = attendance.filter(a => a.status === 'ABSENT');
   const halfDayRecords = attendance.filter(a => a.status === 'HALFDAY');
-  const absentDays = absentRecords.length;
   const halfDays = halfDayRecords.length;
   const lateMarks = attendance.filter(a => a.status === 'LATE').length;
+
+  // Fetch approved leaves to determine paid vs unpaid
+  const approvedLeaves = await prisma.leave.findMany({
+    where: {
+      employeeId,
+      status: 'APPROVED',
+      OR: [
+        { startDate: { lte: endDate }, endDate: { gte: startDate } }
+      ]
+    },
+    orderBy: { startDate: 'asc' }
+  });
+
+  // Build set of dates that fall within paid leaves
+  const paidLeaveDates = new Set<string>();
+  const leaveDetails: LeaveDetailItem[] = approvedLeaves.map(l => ({
+    id: l.id,
+    leaveType: l.leaveType,
+    startDate: l.startDate,
+    endDate: l.endDate,
+    numberOfDays: l.numberOfDays,
+    reason: l.reason,
+    isPaid: l.isPaid,
+    status: l.status
+  }));
+
+  for (const leave of approvedLeaves) {
+    if (!leave.isPaid) continue;
+    const leaveStart = leave.startDate > startDate ? leave.startDate : startDate;
+    const leaveEnd = leave.endDate < endDate ? leave.endDate : endDate;
+    let d = new Date(leaveStart);
+    while (d <= leaveEnd) {
+      const dayStr = d.toISOString().slice(0, 10);
+      paidLeaveDates.add(dayStr);
+      d = new Date(d.getTime() + 86400000);
+    }
+  }
+
+  // Count absent days excluding paid leave dates
+  const unpaidAbsentRecords = absentRecords.filter(a => {
+    const dateStr = a.date.toISOString().slice(0, 10);
+    return !paidLeaveDates.has(dateStr);
+  });
+  const paidAbsentCount = absentRecords.length - unpaidAbsentRecords.length;
+  const absentDays = unpaidAbsentRecords.length;
+
+  // Count paid vs unpaid leave days
+  let paidLeaveDays = 0;
+  let unpaidLeaveDays = 0;
+  for (const leave of approvedLeaves) {
+    if (leave.isPaid) {
+      paidLeaveDays += leave.numberOfDays;
+    } else {
+      unpaidLeaveDays += leave.numberOfDays;
+    }
+  }
 
   // Penalties (auto-penalties are already covered via attendance deductions)
   const penalties = await prisma.penalty.findMany({
@@ -125,7 +194,7 @@ export async function calculateEmployeePayroll(
 
   // Deduction breakdown (so everyone can see exactly how much & why)
   const deductionBreakdown: PayrollDeductionItem[] = [
-    ...absentRecords.map(a => ({ type: 'ABSENT' as const, label: 'Absent', date: a.date, amount: Math.round(perDaySalary) })),
+    ...unpaidAbsentRecords.map(a => ({ type: 'ABSENT' as const, label: 'Absent (Unpaid Leave)', date: a.date, amount: Math.round(perDaySalary) })),
     ...halfDayRecords.map(a => ({ type: 'HALFDAY' as const, label: 'Half Day', date: a.date, amount: Math.round(perDaySalary * 0.5) })),
     ...manualPenalties.map(p => ({ type: 'PENALTY' as const, label: p.reason, date: p.date, amount: p.amount, id: p.id })),
     ...salaryDeductions.map(d => ({ type: 'DEDUCTION' as const, label: d.type, date: d.date, amount: d.amount, id: d.id }))
@@ -172,6 +241,9 @@ export async function calculateEmployeePayroll(
     deductionBreakdown: deductionBreakdown.map(d => ({ ...d, amount: Math.round(d.amount) })),
     totalDeductions,
     grossEarnings,
-    netSalary
+    netSalary,
+    leaveDetails,
+    paidLeaveDays,
+    unpaidLeaveDays
   };
 }

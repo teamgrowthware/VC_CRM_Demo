@@ -5,10 +5,12 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   const mock = new MockAdapter(apiClient, { delayResponse: 500 });
 
   const dummyEmployees = [
-    { id: 'admin1', employeeId: 'EMP-001', firstName: 'Admin', lastName: 'User', name: 'Admin User', role: 'ADMIN', email: 'admin@vortexcubes.com', status: 'ACTIVE', department: 'Management', joiningDate: new Date('2023-01-15').toISOString(), avatar: 'https://i.pravatar.cc/150?u=admin' },
-    { id: 'emp1', employeeId: 'EMP-002', firstName: 'John', lastName: 'Doe', name: 'John Doe', role: 'EMPLOYEE', email: 'john@vortexcubes.com', status: 'ACTIVE', department: 'Engineering', joiningDate: new Date('2023-03-10').toISOString(), avatar: 'https://i.pravatar.cc/150?u=john' },
-    { id: 'emp2', employeeId: 'EMP-003', firstName: 'Jane', lastName: 'Smith', name: 'Jane Smith', role: 'MANAGER', email: 'jane@vortexcubes.com', status: 'ACTIVE', department: 'Design', joiningDate: new Date('2023-06-22').toISOString(), avatar: 'https://i.pravatar.cc/150?u=jane' },
-    { id: 'emp3', employeeId: 'EMP-004', firstName: 'Alice', lastName: 'Johnson', name: 'Alice Johnson', role: 'EMPLOYEE', email: 'alice@vortexcubes.com', status: 'ON_LEAVE', department: 'Marketing', joiningDate: new Date('2023-08-05').toISOString(), avatar: 'https://i.pravatar.cc/150?u=alice' }
+    { id: 'admin1', employeeId: 'EMP-001', firstName: 'Admin', lastName: 'User', name: 'Admin User', role: 'ADMIN', email: 'admin@vortexcubes.com', status: 'ACTIVE', department: 'Management', salary: 120000, joiningDate: new Date('2023-01-15').toISOString(), avatar: 'https://i.pravatar.cc/150?u=admin' },
+    { id: 'emp1', employeeId: 'EMP-002', firstName: 'John', lastName: 'Doe', name: 'John Doe', role: 'EMPLOYEE', email: 'john@vortexcubes.com', status: 'ACTIVE', department: 'Engineering', salary: 55000, joiningDate: new Date('2023-03-10').toISOString(), avatar: 'https://i.pravatar.cc/150?u=john' },
+    { id: 'emp2', employeeId: 'EMP-003', firstName: 'Jane', lastName: 'Smith', name: 'Jane Smith', role: 'MANAGER', email: 'jane@vortexcubes.com', status: 'ACTIVE', department: 'Design', salary: 75000, joiningDate: new Date('2023-06-22').toISOString(), avatar: 'https://i.pravatar.cc/150?u=jane' },
+    { id: 'emp3', employeeId: 'EMP-004', firstName: 'Alice', lastName: 'Johnson', name: 'Alice Johnson', role: 'EMPLOYEE', email: 'alice@vortexcubes.com', status: 'ON_LEAVE', department: 'Marketing', salary: 48000, joiningDate: new Date('2023-08-05').toISOString(), avatar: 'https://i.pravatar.cc/150?u=alice' },
+    { id: 'emp4', employeeId: 'EMP-005', firstName: 'Priya', lastName: 'Sharma', name: 'Priya Sharma', role: 'HR', email: 'hr@vortexcubes.com', status: 'ACTIVE', department: 'Human Resources', salary: 65000, joiningDate: new Date('2023-02-10').toISOString(), avatar: 'https://i.pravatar.cc/150?u=priya' },
+    { id: 'emp5', employeeId: 'EMP-006', firstName: 'Rahul', lastName: 'Verma', name: 'Rahul Verma', role: 'PROJECT_MANAGER', email: 'pm@vortexcubes.com', status: 'ACTIVE', department: 'Project Management', salary: 80000, joiningDate: new Date('2023-05-18').toISOString(), avatar: 'https://i.pravatar.cc/150?u=rahul' }
   ];
 
   const dummyProjects = [
@@ -85,7 +87,7 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   mock.onGet(/\/analytics\/employees/).reply(200, {
     total: dummyEmployees.length,
     active: dummyEmployees.filter(e => e.status === 'ACTIVE').length,
-    byDepartment: [{ name: 'Engineering', count: 1 }, { name: 'Management', count: 1 }, { name: 'Design', count: 1 }, { name: 'Marketing', count: 1 }]
+    byDepartment: [{ name: 'Engineering', count: 1 }, { name: 'Management', count: 1 }, { name: 'Design', count: 1 }, { name: 'Marketing', count: 1 }, { name: 'Human Resources', count: 1 }, { name: 'Project Management', count: 1 }]
   });
 
   mock.onGet(/\/analytics\/attendance/).reply(200, {
@@ -146,15 +148,14 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     ]
   });
 
-  mock.onGet(/\/analytics\/team-productivity/).reply(200, dummyEmployees.map(e => ({
-    id: e.id,
-    name: e.firstName + ' ' + e.lastName,
-    totalTasks: Math.floor(Math.random() * 20) + 5,
-    completed: Math.floor(Math.random() * 15) + 2,
-    completionRate: Math.floor(Math.random() * 40) + 60,
-    overdue: Math.floor(Math.random() * 2),
-    score: Math.floor(Math.random() * 30) + 70
-  })));
+  mock.onGet(/\/analytics\/team-productivity/).reply(200, [
+    { id: 'emp2', name: 'Jane Smith', totalTasks: 18, completed: 15, completionRate: 83, overdue: 1, score: 88 },
+    { id: 'emp1', name: 'John Doe', totalTasks: 14, completed: 10, completionRate: 71, overdue: 2, score: 78 },
+    { id: 'emp4', name: 'Priya Sharma', totalTasks: 12, completed: 11, completionRate: 92, overdue: 0, score: 92 },
+    { id: 'emp5', name: 'Rahul Verma', totalTasks: 16, completed: 14, completionRate: 88, overdue: 0, score: 85 },
+    { id: 'emp3', name: 'Alice Johnson', totalTasks: 10, completed: 7, completionRate: 70, overdue: 1, score: 72 },
+    { id: 'admin1', name: 'Admin User', totalTasks: 5, completed: 5, completionRate: 100, overdue: 0, score: 95 }
+  ]);
 
   // Employees
   mock.onGet(/\/employees\/.+/).reply((config) => {
@@ -209,6 +210,17 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   });
 
   // Attendance
+  mock.onGet(/\/attendance\/today/).reply(200, { data: { id: 'att-today', employeeId: 'emp1', date: new Date().toISOString().slice(0,10), punchIn: new Date(new Date().setHours(9, 0, 0, 0)).toISOString(), punchOut: null, status: 'PRESENT', breaks: [], lunch: null } });
+  mock.onGet(/\/attendance\/history/).reply(200, { data: dummyAttendance });
+  mock.onGet(/\/attendance\/calendar/).reply(200, { data: dummyAttendance });
+  mock.onPost(/\/attendance\/punch-in/).reply(200, { data: { id: `att-${Date.now()}`, employeeId: 'emp1', date: new Date().toISOString().slice(0,10), punchIn: new Date().toISOString(), punchOut: null, status: 'PRESENT', breaks: [], lunch: null } });
+  mock.onPost(/\/attendance\/punch-out/).reply(200, { data: { id: 'att-today', employeeId: 'emp1', date: new Date().toISOString().slice(0,10), punchIn: new Date(new Date().setHours(9, 0, 0, 0)).toISOString(), punchOut: new Date().toISOString(), status: 'PRESENT', breaks: [], lunch: null } });
+  mock.onPost(/\/attendance\/break-start/).reply(200, { data: { id: 'att-today', breaks: [{ start: new Date().toISOString(), end: null }] } });
+  mock.onPost(/\/attendance\/break-end/).reply(200, { data: { id: 'att-today', breaks: [{ start: new Date(Date.now() - 900000).toISOString(), end: new Date().toISOString() }] } });
+  mock.onPost(/\/attendance\/lunch-start/).reply(200, { data: { id: 'att-today', lunch: { start: new Date().toISOString(), end: null } } });
+  mock.onPost(/\/attendance\/lunch-end/).reply(200, { data: { id: 'att-today', lunch: { start: new Date(Date.now() - 3600000).toISOString(), end: new Date().toISOString() } } });
+  mock.onPatch(/\/attendance\/.+\/status/).reply(200, { data: {} });
+  mock.onDelete(/\/attendance\/penalties\/.+/).reply(200, { success: true });
   mock.onGet(/\/attendance\/all/).reply(200, { data: dummyAttendance, success: true });
   mock.onGet(/\/attendance(\?.*)?$/).reply(200, dummyAttendance);
   mock.onPost(/\/attendance\/holidays/).reply((config) => {
@@ -421,6 +433,53 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
     { name: 'Charlie Brown', attendanceHours: 160, trackedHours: 120, missingHours: 40, efficiency: 75 }
   ]);
 
+  mock.onGet(/\/analytics\/productivity/).reply(200, {
+    sodsSubmitted: 18,
+    eodsSubmitted: 15,
+    pendingEods: [
+      { employee: { name: 'John Doe', department: { name: 'Engineering' } }, date: new Date().toISOString() },
+      { employee: { name: 'Jane Smith', department: { name: 'Design' } }, date: new Date().toISOString() }
+    ]
+  });
+
+  // Announcements & Events (for OverviewDashboard)
+  mock.onGet(/\/announcements\/active/).reply(200, { announcements: [
+    { id: 'ann1', title: 'Company Town Hall', message: 'Join us for the quarterly town hall meeting this Friday at 4 PM.', priority: 'HIGH' },
+    { id: 'ann2', title: 'New Leave Policy', message: 'Updated leave policy effective from August 1st. Check the HR portal for details.', priority: 'MEDIUM' }
+  ]});
+  mock.onGet(/\/events\/upcoming/).reply(200, {
+    birthdays: [
+      { id: 'b1', name: 'John Doe', date: '2026-08-25' }
+    ],
+    anniversaries: [
+      { id: 'a1', name: 'Jane Smith', years: 3, date: '2026-08-22' }
+    ],
+    events: [
+      { id: 'e1', title: 'Team Outing', date: '2026-08-30', type: 'COMPANY' }
+    ]
+  });
+
+  // Payslips
+  mock.onGet(/\/payslips\/recent/).reply(200, { payslips: [
+    { id: 'ps-r1', month: 'July 2026', period: '2026-07', netSalary: 52000, employeeId: 'emp1' },
+    { id: 'ps-r2', month: 'June 2026', period: '2026-06', netSalary: 52000, employeeId: 'emp1' }
+  ]});
+
+  // Sprints
+  mock.onGet(/\/sprints\/project\/.+/).reply(200, { data: [
+    { id: 'spr1', name: 'Sprint 12 - Aug', status: 'ACTIVE', startDate: '2026-08-01', endDate: '2026-08-14', projectId: 'proj1' },
+    { id: 'spr2', name: 'Sprint 11 - Jul', status: 'COMPLETED', startDate: '2026-07-15', endDate: '2026-07-31', projectId: 'proj1' }
+  ]});
+  mock.onGet(/\/sprints/).reply(200, { data: [
+    { id: 'spr1', name: 'Sprint 12 - Aug', status: 'ACTIVE', startDate: '2026-08-01', endDate: '2026-08-14', projectId: 'proj1' },
+    { id: 'spr2', name: 'Sprint 11 - Jul', status: 'COMPLETED', startDate: '2026-07-15', endDate: '2026-07-31', projectId: 'proj1' }
+  ]});
+
+  // Time tracking active timer
+  mock.onGet(/\/time\/active/).reply(200, { data: null });
+  mock.onPost(/\/time\/start/).reply(200, { data: { id: `timer-${Date.now()}`, startTime: new Date().toISOString(), status: 'RUNNING' } });
+  mock.onPost(/\/time\/stop/).reply(200, { data: { id: 'timer-1', startTime: new Date(Date.now() - 3600000).toISOString(), endTime: new Date().toISOString(), status: 'STOPPED' } });
+
 
   // Chat
   const dummyChatRooms = [
@@ -556,10 +615,12 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
       id: `msg${Date.now()}`,
       roomId: data.roomId,
       senderId: dummyEmployees[1].id,
+      senderClientId: null as any,
       content: data.content,
       createdAt: new Date().toISOString(),
-      sender: dummyEmployees[1]
-    };
+      sender: dummyEmployees[1],
+      senderClient: null as any
+    } as any;
     const room = dummyChatRooms.find(r => r.id === data.roomId);
     if (room) {
       room.messages.push(newMessage);
@@ -727,13 +788,51 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
   });
 
   // Auth
-  mock.onPost(/\/auth\/login/).reply(200, {
-    success: true,
-    token: 'dummy-token',
-    employee: dummyEmployees[0]
+  mock.onPost(/\/auth\/login/).reply((config) => {
+    const body = JSON.parse(config.data);
+    const email = (body.email || '').trim().toLowerCase();
+    
+    const emailRoleMap: Record<string, string> = {
+      'admin@vortexcubes.com': 'ADMIN',
+      'hr@vortexcubes.com': 'HR',
+      'jane@vortexcubes.com': 'MANAGER',
+      'pm@vortexcubes.com': 'PROJECT_MANAGER',
+      'john@vortexcubes.com': 'EMPLOYEE',
+      'alice@vortexcubes.com': 'EMPLOYEE',
+    };
+
+    let matchedEmployee = dummyEmployees.find(e => e.email.toLowerCase() === email);
+    
+    if (!matchedEmployee && emailRoleMap[email]) {
+      matchedEmployee = dummyEmployees.find(e => e.role === emailRoleMap[email]);
+    }
+    
+    if (!matchedEmployee) {
+      matchedEmployee = dummyEmployees[0];
+    }
+
+    return [200, {
+      success: true,
+      token: 'dummy-token',
+      employee: {
+        id: matchedEmployee.id,
+        employeeId: matchedEmployee.employeeId,
+        firstName: matchedEmployee.firstName,
+        lastName: matchedEmployee.lastName,
+        name: matchedEmployee.name,
+        role: matchedEmployee.role,
+        email: matchedEmployee.email,
+        status: matchedEmployee.status,
+        department: matchedEmployee.department,
+        avatar: matchedEmployee.avatar,
+      }
+    }];
   });
 
   mock.onPost(/\/auth\/logout/).reply(200, { success: true });
+  mock.onPost(/\/auth\/forgot-password/).reply(200, { success: true, message: 'If the account exists, an OTP has been sent to your email.' });
+  mock.onPost(/\/auth\/reset-password/).reply(200, { success: true, message: 'Password reset successful. Please log in.' });
+  mock.onPost(/\/auth\/refresh/).reply(200, { success: true, token: 'dummy-refreshed-token', csrfToken: 'dummy-csrf' });
   // Client & Milestones
   mock.onPost(/\/auth\/client-login/).reply(200, {
     success: true,
@@ -835,15 +934,17 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
       id: `INV-${Date.now()}`,
       clientName: data.clientName,
       projectId: data.projectId,
+      amount: data.totalAmount || data.amount || 0,
       subtotal: data.subtotal,
       gstAmount: data.gstAmount,
       totalAmount: data.totalAmount,
       status: data.status || 'DRAFT',
       dueDate: data.dueDate,
       createdAt: new Date().toISOString(),
-      items: data.items
+      items: data.items,
+      project: data.project || { id: data.projectId, name: 'Project', projectId: data.projectId }
     };
-    dummyClientInvoices.unshift(newInvoice);
+    dummyClientInvoices.unshift(newInvoice as any);
     return [200, { data: newInvoice }];
   });
   mock.onPatch(/\/invoices\/.+\/status/).reply((config) => {

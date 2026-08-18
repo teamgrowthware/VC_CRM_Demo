@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import { PASSWORD_REGEX, PASSWORD_POLICY_MESSAGE, isValidPassword } from '../lib/validation';
+import { logAudit } from '../lib/audit';
 
 interface AuthRequest extends Request {
   user?: any;
@@ -11,12 +13,13 @@ interface AuthRequest extends Request {
 const createEmployeeSchema = z.object({
   name: z.string().min(2, 'Name is required'),
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+  password: z.string().regex(PASSWORD_REGEX, PASSWORD_POLICY_MESSAGE).optional(),
   phone: z.string().min(10, 'Phone number should be valid').optional(),
   departmentId: z.string().min(1, 'Department is required'),
   designation: z.string().min(1, 'Designation is required'),
   role: z.enum(['ADMIN', 'HR', 'MANAGER', 'PROJECT_MANAGER', 'EMPLOYEE']).default('EMPLOYEE'),
   joiningDate: z.string().optional(),
+  dateOfBirth: z.string().optional(),
   baseSalary: z.number().optional(),
 });
 
@@ -75,6 +78,7 @@ export const createEmployee = async (req: AuthRequest, res: Response): Promise<v
         designation: validatedData.designation,
         role: validatedData.role,
         joiningDate: validatedData.joiningDate ? new Date(validatedData.joiningDate) : new Date(),
+        dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth) : null,
         baseSalary: validatedData.baseSalary,
       },
       include: {
@@ -83,6 +87,14 @@ export const createEmployee = async (req: AuthRequest, res: Response): Promise<v
     });
 
     const { password: _, ...employeeData } = newEmployee;
+
+    await logAudit({
+      userId: req.user.id,
+      action: 'EMPLOYEE_CREATED',
+      message: `${req.user.name} created employee ${newEmployee.name} (${newEmployee.role})`,
+      entityType: 'EMPLOYEE',
+      entityId: newEmployee.id,
+    });
 
     res.status(201).json({
       success: true,
@@ -119,6 +131,7 @@ export const getAllEmployees = async (req: AuthRequest, res: Response): Promise<
         role: true,
         status: true,
         joiningDate: true,
+        dateOfBirth: true,
         phone: true,
         baseSalary: true,
       },
@@ -230,6 +243,11 @@ export const updateEmployee = async (req: AuthRequest, res: Response): Promise<v
     } else if (updateData.joiningDate === '') {
       delete updateData.joiningDate;
     }
+    if (updateData.dateOfBirth) {
+      updateData.dateOfBirth = new Date(updateData.dateOfBirth);
+    } else if (updateData.dateOfBirth === '') {
+      delete updateData.dateOfBirth;
+    }
     
     if (updateData.password) {
         updateData.password = await bcrypt.hash(updateData.password, 10);
@@ -242,6 +260,14 @@ export const updateEmployee = async (req: AuthRequest, res: Response): Promise<v
     });
     
     const { password: _, ...employeeData } = updatedEmployee;
+
+    await logAudit({
+      userId: req.user.id,
+      action: 'EMPLOYEE_UPDATED',
+      message: `${req.user.name} updated employee ${updatedEmployee.name}`,
+      entityType: 'EMPLOYEE',
+      entityId: updatedEmployee.id,
+    });
 
     res.status(200).json({
       success: true,
@@ -280,6 +306,14 @@ export const toggleEmployeeStatus = async (req: AuthRequest, res: Response): Pro
       }
     });
 
+    await logAudit({
+      userId: req.user.id,
+      action: 'EMPLOYEE_STATUS_CHANGED',
+      message: `${req.user.name} changed status of ${employee.name} to ${newStatus}`,
+      entityType: 'EMPLOYEE',
+      entityId: employee.id,
+    });
+
     res.status(200).json({
       success: true,
       message: `Employee status changed to ${newStatus}`,
@@ -295,9 +329,23 @@ export const deleteEmployee = async (req: AuthRequest, res: Response): Promise<v
   try {
     const id = req.params.id as string;
 
+    const target = await prisma.employee.findUnique({ where: { id } });
+    if (!target) {
+      res.status(404).json({ success: false, message: 'Employee not found' });
+      return;
+    }
+
     await prisma.employee.update({
       where: { id },
       data: { status: 'INACTIVE' },
+    });
+
+    await logAudit({
+      userId: req.user.id,
+      action: 'EMPLOYEE_DELETED',
+      message: `${req.user.name} deactivated employee ${target.name}`,
+      entityType: 'EMPLOYEE',
+      entityId: target.id,
     });
 
     res.status(200).json({ success: true, message: 'Employee deactivated successfully' });

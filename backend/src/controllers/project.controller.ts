@@ -197,14 +197,17 @@ export const getAllProjects = async (req: Request, res: Response) => {
         manager: {
           select: { id: true, name: true, employeeId: true }
         },
-        members: {
-          include: {
-            employee: { select: { id: true, name: true } }
+          members: {
+            include: {
+              employee: { select: { id: true, name: true } }
+            }
+          },
+          tasks: {
+            select: { status: true }
+          },
+          _count: {
+            select: { tasks: true }
           }
-        },
-        _count: {
-          select: { tasks: true }
-        }
       },
       orderBy: { createdAt: 'desc' }
     });

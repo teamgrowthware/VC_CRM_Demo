@@ -28,11 +28,19 @@ const allowedMimeTypes = [
   'application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed'
 ];
 
+const allowedExtensions = [
+  '.jpg', '.jpeg', '.png', '.gif', '.webp',
+  '.pdf', '.csv', '.txt',
+  '.doc', '.docx', '.xls', '.xlsx',
+  '.zip', '.rar'
+];
+
 const fileFilter = (req: any, file: any, cb: any) => {
-  if (allowedMimeTypes.includes(file.mimetype)) {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (allowedMimeTypes.includes(file.mimetype) && allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error(`Unsupported file type: ${file.mimetype}`), false);
+    cb(new Error(`Unsupported file type: ${file.mimetype || file.originalname}`), false);
   }
 };
 

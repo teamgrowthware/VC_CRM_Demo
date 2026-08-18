@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { format } from 'date-fns';
 import prisma from './prisma';
+import { runBackup } from './backup';
 import { checkDeadlines } from '../services/deadline.service';
 import { createNotification } from '../services/notification.service';
 
@@ -171,6 +172,17 @@ export const initCronJobs = () => {
       }
     } catch (err) {
       console.error('[Cron] Productivity audit error:', err);
+    }
+  });
+
+  // Daily database backup at 3:15 AM server time
+  cron.schedule('15 3 * * *', async () => {
+    try {
+      console.log('[Cron] Running daily database backup...');
+      const result = await runBackup();
+      console.log(`[Cron] Backup complete: ${result.tables} tables, ${result.rows} rows -> ${result.jsonFile}`);
+    } catch (error) {
+      console.error('[Cron] Database backup failed:', error);
     }
   });
 

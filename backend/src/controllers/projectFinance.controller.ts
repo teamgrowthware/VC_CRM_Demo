@@ -40,6 +40,7 @@ export const createMilestone = async (req: Request, res: Response) => {
       title: z.string().min(1),
       amount: z.number().positive(),
       dueDate: z.string(),
+      releaseDate: z.string().optional(),
       notes: z.string().optional(),
     });
 
@@ -70,6 +71,7 @@ export const createMilestone = async (req: Request, res: Response) => {
         title: data.title,
         amount: data.amount,
         dueDate: new Date(data.dueDate),
+        releaseDate: data.releaseDate ? new Date(data.releaseDate) : null,
         notes: data.notes,
         status: 'PENDING'
       }
@@ -278,6 +280,8 @@ export const updateMilestone = async (req: Request, res: Response) => {
       title: z.string().optional(),
       amount: z.number().positive().optional(),
       dueDate: z.string().optional(),
+      releaseDate: z.string().nullable().optional(),
+      completedAt: z.string().nullable().optional(),
       notes: z.string().optional(),
       status: z.enum(['PENDING', 'PARTIALLY_PAID', 'PAID', 'OVERDUE']).optional()
     });
@@ -289,7 +293,9 @@ export const updateMilestone = async (req: Request, res: Response) => {
       where: { id: id as string },
       data: {
         ...data,
-        dueDate: data.dueDate ? new Date(data.dueDate) : undefined
+        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+        releaseDate: data.releaseDate === null ? null : data.releaseDate ? new Date(data.releaseDate) : undefined,
+        completedAt: data.completedAt === null ? null : data.completedAt ? new Date(data.completedAt) : undefined
       },
       include: { project: { select: { name: true } } }
     });
@@ -305,5 +311,68 @@ export const updateMilestone = async (req: Request, res: Response) => {
     res.json({ success: true, milestone });
   } catch (error) {
     res.status(400).json({ success: false, message: 'Update failed', error });
+  }
+};
+
+export const deleteMilestone = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.milestoneId as string;
+    const userId = (req as any).user.id;
+
+    const milestone = await prisma.projectMilestone.findUnique({
+      where: { id },
+      include: { project: { select: { name: true } }, payments: true }
+    });
+
+    if (!milestone) return res.status(404).json({ success: false, message: 'Milestone not found' });
+
+    if (milestone.payments.length > 0) {
+      return res.status(400).json({ success: false, message: 'Cannot delete milestone with recorded payments. Remove payments first.' });
+    }
+
+    await prisma.projectMilestone.delete({ where: { id } });
+
+    await logActivity(
+      userId,
+      'MILESTONE_DELETED',
+      `deleted milestone "${milestone.title}" from project "${milestone.project.name}"`,
+      'PROJECT',
+      milestone.projectId
+    );
+
+    res.json({ success: true, message: 'Milestone deleted' });
+  } catch (error) {
+    res.status(400).json({ success: false, message: 'Delete failed', error });
+  }
+};
+
+export const getAllMilestones = async (req: Request, res: Response) => {
+  try {
+    const milestones = await prisma.projectMilestone.findMany({
+      include: {
+        project: { select: { id: true, name: true, totalValue: true } },
+        payments: {
+          select: { amount: true, mode: true, transactionId: true, date: true, notes: true, createdBy: { select: { name: true } } },
+          orderBy: { date: 'desc' }
+        }
+      },
+      orderBy: { dueDate: 'asc' }
+    });
+
+    const totalAmount = milestones.reduce((s: number, m: any) => s + m.amount, 0);
+    const totalPaid = milestones.reduce((s: number, m: any) => s + m.paidAmount, 0);
+    const totalPending = totalAmount - totalPaid;
+    const overdue = milestones.filter((m: any) => m.status === 'OVERDUE' || (m.status !== 'PAID' && new Date(m.dueDate) < new Date()));
+    const paid = milestones.filter((m: any) => m.status === 'PAID');
+    const pending = milestones.filter((m: any) => m.status === 'PENDING');
+    const partiallyPaid = milestones.filter((m: any) => m.status === 'PARTIALLY_PAID');
+
+    res.json({
+      success: true,
+      milestones,
+      stats: { totalAmount, totalPaid, totalPending, overdueCount: overdue.length, paidCount: paid.length, pendingCount: pending.length, partiallyPaidCount: partiallyPaid.length }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

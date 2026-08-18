@@ -26,12 +26,28 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     );
 
     const checkAuth = async () => {
-      if (pathname.startsWith('/login')) {
+      if (pathname.startsWith('/login') || pathname.startsWith('/client/login')) {
         setIsReady(true);
         return;
       }
-      const dummyUser = { id: 'admin1', firstName: 'Admin', lastName: 'User', role: 'ADMIN', email: 'admin@demo.com', status: 'ACTIVE' };
-      localStorage.setItem('user', JSON.stringify(dummyUser));
+      const existing = localStorage.getItem('user');
+      if (!existing) {
+        if (!pathname.startsWith('/login')) {
+          router.push('/login');
+        }
+        setIsReady(true);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(existing);
+        if (!parsed || !parsed.role) {
+          localStorage.removeItem('user');
+          router.push('/login');
+        }
+      } catch {
+        localStorage.removeItem('user');
+        router.push('/login');
+      }
       setIsReady(true);
     };
 

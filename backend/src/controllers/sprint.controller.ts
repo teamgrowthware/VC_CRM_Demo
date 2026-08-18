@@ -82,18 +82,36 @@ export const getSprint = async (req: AuthRequest, res: Response): Promise<void> 
 export const getSprintAnalytics = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
-    const tasks = await prisma.task.findMany({ where: { sprintId: id } });
+    const tasks = await prisma.task.findMany({
+      where: { sprintId: id },
+      include: {
+        assignedTo: { select: { id: true, name: true } }
+      }
+    });
     
+    const now = new Date();
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(t => t.status === 'COMPLETED').length;
-    
-    // Very basic analytics placeholder based on our existing Task model
+    const inProgressTasks = tasks.filter(t => t.status === 'IN_PROGRESS').length;
+    const todoTasks = tasks.filter(t => t.status === 'TODO').length;
+    const overdueTasks = tasks.filter(t => t.status !== 'COMPLETED' && t.dueDate && new Date(t.dueDate) < now).length;
+    const pendingTasks = tasks.filter(t => t.status !== 'COMPLETED').length;
+    const totalStoryPoints = tasks.reduce((acc, t) => acc + (t.storyPoints || 0), 0);
+    const completedStoryPoints = tasks.filter(t => t.status === 'COMPLETED').reduce((acc, t) => acc + (t.storyPoints || 0), 0);
+
     res.status(200).json({ 
       success: true, 
       data: {
         totalTasks,
         completedTasks,
-        completionRate: totalTasks ? (completedTasks / totalTasks) * 100 : 0
+        inProgressTasks,
+        todoTasks,
+        overdueTasks,
+        pendingTasks,
+        completionRate: totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0,
+        storyPoints: totalStoryPoints,
+        completedStoryPoints,
+        storyPointCompletionRate: totalStoryPoints ? Math.round((completedStoryPoints / totalStoryPoints) * 100) : 0
       } 
     });
   } catch (error) {

@@ -7,40 +7,107 @@ interface AuthRequest extends Request {
   user?: any;
 }
 
+const isClientUser = (user: any) => user?.role === 'CLIENT';
+
+const findMembership = async (roomId: string, user: any) => {
+  return prisma.chatMember.findFirst({
+    where: isClientUser(user)
+      ? { roomId, clientId: user.id }
+      : { roomId, employeeId: user.id },
+  });
+};
+
+const memberInclude = {
+  employee: { select: { name: true, employeeId: true } },
+  client: { select: { name: true, clientId: true, company: true } },
+};
+
+// Team members (manager + project members) for all projects assigned to a client.
+// Clients may only chat with their own project team.
+const getClientTeamEmployeeIds = async (clientId: string): Promise<Set<string>> => {
+  const projects = await prisma.project.findMany({
+    where: { clientId },
+    select: {
+      manager: { select: { id: true } },
+      members: { select: { employeeId: true } },
+    },
+  });
+  const ids = new Set<string>();
+  projects.forEach((p) => {
+    ids.add(p.manager.id);
+    p.members.forEach((m) => ids.add(m.employeeId));
+  });
+  return ids;
+};
+
 export const createChatRoom = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { name, type, memberIds } = req.body;
+    const { name, type, memberIds, clientId } = req.body;
     const authorId = req.user.id;
+    const isClient = isClientUser(req.user);
 
-    // For direct chats, a target member is required
+    // For direct chats, a target member is required (either employee or client)
     const roomType = type || 'PERSONAL';
-    if (roomType === 'PERSONAL' && (!memberIds || memberIds.length === 0)) {
+    if (roomType === 'PERSONAL' && (!memberIds || memberIds.length === 0) && !clientId) {
       res.status(400).json({ error: 'A target user is required for a direct chat' });
       return;
     }
 
-    // Ensure author is included in memberIds if not already
-    const allMemberIds = Array.from(new Set([...(memberIds || []), authorId]));
+    // Clients may only open direct chats with members of their assigned projects
+    if (isClient && roomType === 'PERSONAL') {
+      const teamIds = await getClientTeamEmployeeIds(authorId);
+      const invalid = memberIds.filter((id: string) => !teamIds.has(id));
+      if (invalid.length > 0) {
+        res.status(403).json({ error: 'You can only chat with your project team' });
+        return;
+      }
+    }
+
+    // Ensure author is included in memberIds if not already (employee author)
+    const allMemberIds = Array.from(new Set([...(memberIds || []), ...(isClient ? [] : [authorId])]));
 
     // If it's a personal chat, check if a room already exists with these exact members
-        const existingRoom = await prisma.chatRoom.findFirst({
-          where: {
-            type: 'PERSONAL',
-            AND: [
-              { members: { some: { employeeId: authorId } } },
-              { members: { some: { employeeId: memberIds[0] } } }
-            ],
-          },
-          include: {
-            members: { include: { employee: { select: { name: true, employeeId: true } } } },
-            messages: { orderBy: { createdAt: 'desc' }, take: 1 }
-          }
-        });
+    const targetEmployeeId = memberIds && memberIds.length > 0 ? memberIds[0] : null;
+    const targetClientId = clientId || null;
+    const existingRoom = await prisma.chatRoom.findFirst({
+      where: {
+        type: 'PERSONAL',
+        AND: isClient
+          ? [
+              { members: { some: { clientId: authorId } } },
+              { members: { some: { employeeId: targetEmployeeId } } },
+            ]
+          : targetClientId
+            ? [
+                { members: { some: { employeeId: authorId } } },
+                { members: { some: { clientId: targetClientId } } },
+              ]
+            : [
+                { members: { some: { employeeId: authorId } } },
+                { members: { some: { employeeId: targetEmployeeId } } },
+              ],
+      },
+      include: {
+        members: { include: memberInclude },
+        messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+    });
 
-       if (existingRoom) {
-         res.status(200).json({ message: 'Room already exists', chatRoom: existingRoom });
-         return;
-       }
+    if (existingRoom) {
+      res.status(200).json({ message: 'Room already exists', chatRoom: existingRoom });
+      return;
+    }
+
+    const memberData: any[] = [];
+    if (isClient) {
+      memberData.push({ clientId: authorId, isAdmin: true });
+    }
+    allMemberIds.forEach((id: string) => {
+      memberData.push({ employeeId: id, isAdmin: id === authorId });
+    });
+    if (!isClient && clientId) {
+      memberData.push({ clientId, isAdmin: false });
+    }
 
     const chatRoom = await prisma.chatRoom.create({
       data: {
@@ -49,16 +116,9 @@ export const createChatRoom = async (req: AuthRequest, res: Response): Promise<v
         avatarUrl: req.body.avatarUrl,
         type: roomType,
         createdBy: authorId,
-        members: {
-          create: allMemberIds.map((id: string) => ({ 
-            employeeId: id,
-            isAdmin: id === authorId // Creator is admin
-          })),
-        },
+        members: { create: memberData },
       },
-      include: {
-        members: { include: { employee: { select: { name: true, employeeId: true } } } },
-      },
+      include: { members: { include: memberInclude } },
     });
 
     res.status(201).json({ message: 'Chat room created successfully', chatRoom });
@@ -72,32 +132,46 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
   try {
     const { roomId, content, receiverId, fileUrl, fileType, mentions } = req.body;
     const senderId = req.user.id;
+    const isClient = isClientUser(req.user);
 
     // Verify room membership
-    const membership = await prisma.chatMember.findUnique({
-      where: { roomId_employeeId: { roomId, employeeId: senderId } },
-    });
-    
+    const membership = await findMembership(roomId, req.user);
     if (!membership) {
-       res.status(403).json({ error: 'You are not a member of this chat room' });
-       return;
+      res.status(403).json({ error: 'You are not a member of this chat room' });
+      return;
+    }
+
+    // The DM "receiver" may be an Employee or a Client — resolve against both.
+    let receiverEmployeeId: string | null = null;
+    let receiverClientId: string | null = null;
+    if (receiverId) {
+      const emp = await prisma.employee.findUnique({ where: { id: receiverId }, select: { id: true } });
+      if (emp) {
+        receiverEmployeeId = receiverId;
+      } else {
+        const cl = await prisma.client.findUnique({ where: { id: receiverId }, select: { id: true } });
+        if (cl) receiverClientId = receiverId;
+      }
     }
 
     const newMessage = await prisma.message.create({
       data: {
         roomId,
-        senderId,
-        receiverId,
+        senderId: isClient ? null : senderId,
+        senderClientId: isClient ? senderId : null,
+        receiverId: receiverEmployeeId,
+        receiverClientId,
         content,
         fileUrl,
         fileType,
-        mentions: mentions && mentions.length > 0 ? {
-          create: mentions.map((id: string) => ({ employeeId: id }))
-        } : undefined
+        mentions: mentions && mentions.length > 0
+          ? { create: mentions.map((id: string) => ({ employeeId: id })) }
+          : undefined,
       },
       include: {
         sender: { select: { name: true, employeeId: true } },
-        mentions: true
+        senderClient: { select: { name: true, clientId: true } },
+        mentions: true,
       },
     });
 
@@ -106,21 +180,22 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
       where: { id: roomId },
       include: { members: true, messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
     });
-    
+
     // Broadcast message broadly locally
     emitToRoom(roomId, 'receiveMessage', newMessage);
 
-    // Create system notification for members (excluding sender)
+    // Create system notification for employee members (excluding the sender)
+    const senderName = newMessage.sender?.name || newMessage.senderClient?.name || 'Unknown';
     const members = room?.members || [];
     for (const m of members) {
-       if (m.employeeId !== senderId) {
-          await createNotification(
-             m.employeeId,
-             'COMMENT_ADDED' as any,
-             `You have a new message from ${newMessage.sender.name}`,
-             `/dashboard/chat`
-          );
-       }
+      if (m.employeeId && m.employeeId !== senderId) {
+        await createNotification(
+          m.employeeId,
+          'COMMENT_ADDED' as any,
+          `You have a new message from ${senderName}`,
+          `/dashboard/chat`
+        );
+      }
     }
 
     res.status(201).json({ message: 'Message sent successfully', newMessage });
@@ -130,25 +205,45 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
+export const getChatClients = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const clients = await prisma.client.findMany({
+      where: { status: 'ACTIVE' },
+      select: { id: true, name: true, company: true, clientId: true }
+    });
+    res.status(200).json(clients);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch chat clients' });
+  }
+};
+
 export const getMyChatRooms = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const employeeId = req.user.id;
+    const userId = req.user.id;
+    const isClient = isClientUser(req.user);
     const rooms = await prisma.chatRoom.findMany({
       where: {
         isDeleted: false,
         members: {
-          some: { employeeId },
+          some: isClient ? { clientId: userId } : { employeeId: userId },
         },
       },
       include: {
         members: {
-          where: {
-            OR: [
-              { employeeId }, // Always include the current user
-              { room: { type: { in: ['PERSONAL', 'GROUP'] } } } // For chats, include the other members
-            ]
-          },
-          include: { employee: { select: { name: true, employeeId: true } } }
+          where: isClient
+            ? {
+                OR: [
+                  { clientId: userId },
+                  { room: { type: { in: ['PERSONAL', 'GROUP'] } } },
+                ],
+              }
+            : {
+                OR: [
+                  { employeeId: userId },
+                  { room: { type: { in: ['PERSONAL', 'GROUP'] } } },
+                ],
+              },
+          include: memberInclude,
         },
         messages: {
           orderBy: { createdAt: 'desc' },
@@ -170,14 +265,15 @@ export const getMessagesByRoom = async (req: AuthRequest, res: Response): Promis
     const limit = parseInt(req.query.limit as string) || 50;
     const cursor = req.query.cursor as string;
     const userId = req.user.id;
+    const isClient = isClientUser(req.user);
 
-    const membership = await prisma.chatMember.findUnique({
-      where: { roomId_employeeId: { roomId, employeeId: userId } },
+    const membership = await prisma.chatMember.findFirst({
+      where: isClient ? { roomId, clientId: userId } : { roomId, employeeId: userId },
     });
 
     if (!membership) {
-        res.status(403).json({ error: 'You are not a member of this chat room' });
-        return;
+      res.status(403).json({ error: 'You are not a member of this chat room' });
+      return;
     }
 
     const query: any = {
@@ -186,6 +282,7 @@ export const getMessagesByRoom = async (req: AuthRequest, res: Response): Promis
       take: limit,
       include: {
         sender: { select: { name: true, employeeId: true } },
+        senderClient: { select: { name: true, clientId: true } },
       },
     };
 
@@ -219,7 +316,7 @@ export const uploadChatFile = async (req: AuthRequest, res: Response) => {
       url: fileUrl,
       type: req.file.mimetype,
       name: req.file.originalname,
-      size: req.file.size
+      size: req.file.size,
     });
   } catch (error) {
     console.error('Upload chat file error:', error);
@@ -232,20 +329,16 @@ export const updateGroup = async (req: AuthRequest, res: Response): Promise<void
   try {
     const roomId = req.params.roomId as string;
     const { name, description, avatarUrl, isArchived } = req.body;
-    const userId = req.user.id;
 
-    const membership = await prisma.chatMember.findUnique({
-      where: { roomId_employeeId: { roomId, employeeId: userId } },
-    });
-
+    const membership = await findMembership(roomId, req.user);
     if (!membership || (!membership.isAdmin && req.user.role !== 'ADMIN')) {
-       res.status(403).json({ error: 'Not authorized to update this group' });
-       return;
+      res.status(403).json({ error: 'Not authorized to update this group' });
+      return;
     }
 
     const updated = await prisma.chatRoom.update({
       where: { id: roomId },
-      data: { name, description, avatarUrl, isArchived }
+      data: { name, description, avatarUrl, isArchived },
     });
 
     emitToRoom(roomId, 'roomUpdated', updated);
@@ -260,15 +353,15 @@ export const softDeleteGroup = async (req: AuthRequest, res: Response): Promise<
   try {
     const roomId = req.params.roomId as string;
     if (req.user.role !== 'ADMIN') {
-       res.status(403).json({ error: 'Only admins can delete groups' });
-       return;
+      res.status(403).json({ error: 'Only admins can delete groups' });
+      return;
     }
 
     const deleted = await prisma.chatRoom.update({
       where: { id: roomId },
-      data: { isDeleted: true }
+      data: { isDeleted: true },
     });
-    
+
     emitToRoom(roomId, 'roomDeleted', { roomId });
     res.status(200).json(deleted);
   } catch (error) {
@@ -280,15 +373,15 @@ export const restoreGroup = async (req: AuthRequest, res: Response): Promise<voi
   try {
     const roomId = req.params.roomId as string;
     if (req.user.role !== 'ADMIN') {
-       res.status(403).json({ error: 'Only admins can restore groups' });
-       return;
+      res.status(403).json({ error: 'Only admins can restore groups' });
+      return;
     }
 
     const restored = await prisma.chatRoom.update({
       where: { id: roomId },
-      data: { isDeleted: false }
+      data: { isDeleted: false },
     });
-    
+
     emitToRoom(roomId, 'roomRestored', restored);
     res.status(200).json(restored);
   } catch (error) {
@@ -300,11 +393,16 @@ export const updateChatPreferences = async (req: AuthRequest, res: Response): Pr
   try {
     const roomId = req.params.roomId as string;
     const { isPinned, isFavorite, isMuted, priority, lastReadAt } = req.body;
-    const userId = req.user.id;
+
+    const membership = await findMembership(roomId, req.user);
+    if (!membership) {
+      res.status(403).json({ error: 'You are not a member of this chat room' });
+      return;
+    }
 
     const updated = await prisma.chatMember.update({
-      where: { roomId_employeeId: { roomId, employeeId: userId } },
-      data: { isPinned, isFavorite, isMuted, priority, lastReadAt }
+      where: { id: membership.id },
+      data: { isPinned, isFavorite, isMuted, priority, lastReadAt },
     });
 
     res.status(200).json(updated);
@@ -316,21 +414,17 @@ export const updateChatPreferences = async (req: AuthRequest, res: Response): Pr
 export const addGroupMember = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const roomId = req.params.roomId as string;
-    const { employeeId } = req.body;
-    const userId = req.user.id;
+    const { employeeId, clientId } = req.body;
 
-    const callerMembership = await prisma.chatMember.findUnique({
-      where: { roomId_employeeId: { roomId, employeeId: userId } },
-    });
-
+    const callerMembership = await findMembership(roomId, req.user);
     if (!callerMembership || (!callerMembership.isAdmin && req.user.role !== 'ADMIN')) {
-       res.status(403).json({ error: 'Not authorized to add members' });
-       return;
+      res.status(403).json({ error: 'Not authorized to add members' });
+      return;
     }
 
     const newMember = await prisma.chatMember.create({
-      data: { roomId, employeeId },
-      include: { employee: { select: { name: true, employeeId: true } } }
+      data: { roomId, employeeId: employeeId || null, clientId: clientId || null },
+      include: memberInclude,
     });
 
     emitToRoom(roomId, 'memberAdded', { roomId, member: newMember });
@@ -348,18 +442,18 @@ export const removeGroupMember = async (req: AuthRequest, res: Response): Promis
 
     // Users can remove themselves, but to remove others, they must be admin
     if (memberIdToRemove !== userId) {
-      const callerMembership = await prisma.chatMember.findUnique({
-        where: { roomId_employeeId: { roomId, employeeId: userId } },
-      });
-
+      const callerMembership = await findMembership(roomId, req.user);
       if (!callerMembership || (!callerMembership.isAdmin && req.user.role !== 'ADMIN')) {
-         res.status(403).json({ error: 'Not authorized to remove members' });
-         return;
+        res.status(403).json({ error: 'Not authorized to remove members' });
+        return;
       }
     }
 
-    await prisma.chatMember.delete({
-      where: { roomId_employeeId: { roomId, employeeId: memberIdToRemove } }
+    await prisma.chatMember.deleteMany({
+      where: {
+        roomId,
+        OR: [{ employeeId: memberIdToRemove }, { clientId: memberIdToRemove }],
+      },
     });
 
     emitToRoom(roomId, 'memberRemoved', { roomId, employeeId: memberIdToRemove });
