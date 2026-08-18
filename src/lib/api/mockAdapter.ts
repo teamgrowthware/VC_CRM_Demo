@@ -294,7 +294,7 @@ export const setupMockAdapter = (apiClient: AxiosInstance) => {
           employee: emp,
           month: m,
           year: y,
-          netSalary: emp.salary || 50000,
+          netSalary: (emp as any).salary || 50000,
           status: 'PENDING',
           paymentMode: null,
           paymentDate: null
