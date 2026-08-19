@@ -18,7 +18,7 @@ export default function NotificationsPage() {
       setLoading(true);
       const data = await getNotifications(20, p);
       if (p === 1) {
-        setNotifications(state => data.notifications);
+        setNotifications(data.notifications);
       } else {
         setNotifications(prev => [...prev, ...data.notifications]);
       }

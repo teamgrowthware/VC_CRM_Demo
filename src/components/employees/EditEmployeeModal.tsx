@@ -13,7 +13,7 @@ import { DateInput } from '@/components/ui/DateInput';
 const editEmployeeSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
-  phone: z.string().optional(),
+  phone: z.string().regex(/^(\+91[\-\s]?)?[6-9]\d{9}$|^\d{10,12}$/, 'Enter a valid phone number').optional().or(z.literal('')),
   departmentId: z.string().min(1, 'Department is required'),
   designation: z.string().min(1, 'Designation is required'),
   role: z.enum(['ADMIN', 'HR', 'MANAGER', 'PROJECT_MANAGER', 'EMPLOYEE']),
