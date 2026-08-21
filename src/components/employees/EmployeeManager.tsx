@@ -14,6 +14,7 @@ import { CreateEmployeeModal } from './CreateEmployeeModal';
 import { EditEmployeeModal } from './EditEmployeeModal';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 export const EmployeeManager = () => {
   const { user } = useAuth();
@@ -56,10 +57,11 @@ export const EmployeeManager = () => {
     if (!confirm(`Are you sure you want to deactivate ${employee.name}?`)) return;
     try {
       await deleteEmployee(employee.id);
+      toast.success(`${employee.name} has been deactivated`);
       loadData();
     } catch (error) {
       console.error("Failed to delete employee", error);
-      alert('Failed to delete employee');
+      toast.error('Failed to deactivate employee');
     }
   };
 
