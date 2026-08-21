@@ -32,7 +32,7 @@ export default function DailyReportsPage() {
       setLoading(true);
       const data = await getMyReports();
       setReports(data || []);
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       setError(e.response?.data?.error || 'Failed to fetch reports');
     } finally {
       setLoading(false);
@@ -51,7 +51,7 @@ export default function DailyReportsPage() {
       await createSodReport(sodText);
       setSodText('');
       await fetchReports();
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       let msg = 'Failed to submit SOD';
       if (e.response?.data?.error) {
         if (typeof e.response.data.error === 'string') msg = e.response.data.error;
@@ -73,7 +73,7 @@ export default function DailyReportsPage() {
       setTasksCompleted('');
       setBlockers('');
       await fetchReports();
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       let msg = 'Failed to submit EOD';
       if (e.response?.data?.error) {
         if (typeof e.response.data.error === 'string') msg = e.response.data.error;

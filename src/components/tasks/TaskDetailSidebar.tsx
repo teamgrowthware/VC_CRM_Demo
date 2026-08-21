@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Employee } from '@/types/employee';
 import { fetchEmployees } from '@/lib/api/employee';
 import { formatDate } from '@/lib/utils';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface Props {
   task: Task | null;
@@ -33,9 +33,6 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
   // Local state for assignee
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
-
-  // Confirm Dialog State
-  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     if (task && isOpen) {
@@ -90,31 +87,36 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
     if (!task || !newSubTask.trim()) return;
     try {
       const sub = await createSubTask(task.id, newSubTask);
-      setLocalSubTasks([...localSubTasks, sub]);
+      if (sub) {
+        setLocalSubTasks(prev => [...prev, sub]);
+      }
       setNewSubTask('');
-      onUpdate();
-    } catch (e) {
-      console.error(e);
+      if (onUpdate) onUpdate();
+    } catch (thrown) { const e = thrown as ApiError;
+      console.error('Failed to add subtask:', e);
+      toast.error(e?.response?.data?.error || 'Failed to add subtask');
     }
   };
 
   const handleToggleSubTask = async (sub: SubTask) => {
     try {
       const updated = await toggleSubTask(sub.id, !sub.isDone);
-      setLocalSubTasks(localSubTasks.map(s => s.id === sub.id ? updated : s));
-      onUpdate();
-    } catch (e) {
-      console.error(e);
+      setLocalSubTasks(prev => prev.map(s => s.id === sub.id ? updated : s));
+      if (onUpdate) onUpdate();
+    } catch (thrown) { const e = thrown as ApiError;
+      console.error('Failed to toggle subtask:', e);
+      toast.error(e?.response?.data?.error || 'Failed to update subtask');
     }
   };
 
   const handleDeleteSubTask = async (id: string) => {
     try {
       await deleteSubTask(id);
-      setLocalSubTasks(localSubTasks.filter(s => s.id !== id));
-      onUpdate();
-    } catch (e) {
-      console.error(e);
+      setLocalSubTasks(prev => prev.filter(s => s.id !== id));
+      if (onUpdate) onUpdate();
+    } catch (thrown) { const e = thrown as ApiError;
+      console.error('Failed to delete subtask:', e);
+      toast.error(e?.response?.data?.error || 'Failed to delete subtask');
     }
   };
 
@@ -160,6 +162,7 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
 
   const handleDeleteTask = async () => {
     if (!task) return;
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
     try {
       setLoading(true);
       await deleteTask(task.id);
@@ -171,7 +174,6 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
       toast.error('Failed to delete task');
     } finally {
       setLoading(false);
-      setShowConfirm(false);
     }
   };
 
@@ -236,7 +238,7 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
           <div className="flex items-center gap-2">
             {canManageTask && (
               <button 
-                onClick={() => setShowConfirm(true)} 
+                onClick={handleDeleteTask} 
                 className="p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 rounded-md transition-colors mr-1"
                 title="Delete Task"
               >
@@ -411,9 +413,7 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
             <div className="flex flex-col gap-4">
               {comments.map((comment) => (
                 <div key={comment.id} className="flex gap-3 text-sm">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 flex items-center justify-center flex-shrink-0 font-medium">
-                    {comment.author?.name?.charAt(0) || 'U'}
-                  </div>
+                  <UserAvatar name={comment.author?.name || 'User'} avatarUrl={(comment.author as { avatarUrl?: string } | undefined)?.avatarUrl} size="sm" />
                   <div className="flex flex-col flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className="font-semibold text-zinc-900 dark:text-zinc-100">{comment.author?.name}</span>
@@ -451,15 +451,6 @@ export const TaskDetailSidebar: React.FC<Props> = ({ task, isOpen, onClose, onUp
           </form>
         </div>
       </div>
-
-      <ConfirmDialog 
-        isOpen={showConfirm}
-        title="Delete Task"
-        message={`Are you sure you want to delete the task "${task.title}"? This action cannot be undone.`}
-        isLoading={loading}
-        onConfirm={handleDeleteTask}
-        onCancel={() => setShowConfirm(false)}
-      />
     </>
   );
 };

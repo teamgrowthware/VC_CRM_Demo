@@ -36,6 +36,7 @@ export const ProjectTimesheetsTab = ({ projectId }: ProjectTimesheetsTabProps) =
   const [summary, setSummary] = useState<ProjectTimeSummary | null>(null);
   const [analytics, setAnalytics] = useState<ProjectAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
 
   const fetchData = async () => {
     try {
@@ -210,14 +211,21 @@ export const ProjectTimesheetsTab = ({ projectId }: ProjectTimesheetsTabProps) =
               <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">Audit trail of all tracked activities</p>
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto">
-              <button className="flex-1 sm:flex-none p-3 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
-                <Filter className="w-4 h-4 text-zinc-500" />
-              </button>
+              <div className="relative flex-1 sm:w-48">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search timesheets..." 
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
               <button 
                 onClick={handleExport}
-                className="flex-[2] sm:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-xl text-xs font-black shadow-xl transition-all hover:scale-105 active:scale-95"
+                className="flex-[2] sm:flex-none flex items-center justify-center gap-2 px-6 py-2 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-xl text-xs font-black shadow-xl transition-all hover:scale-105 active:scale-95"
               >
-                <Download className="w-4 h-4" /> EXPORT ASSET
+                <Download className="w-4 h-4" /> EXPORT
               </button>
             </div>
           </div>
@@ -227,6 +235,7 @@ export const ProjectTimesheetsTab = ({ projectId }: ProjectTimesheetsTabProps) =
               rowData={entries}
               columnDefs={colDefs}
               defaultColDef={{ sortable: true, filter: true, resizable: true }}
+              quickFilterText={searchText}
               pagination={true}
               paginationPageSize={15}
             />

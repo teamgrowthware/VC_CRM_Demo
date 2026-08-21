@@ -13,7 +13,7 @@ import { DateInput } from '@/components/ui/DateInput';
 const editEmployeeSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
-  phone: z.string().regex(/^(\+91[\-\s]?)?[6-9]\d{9}$|^\d{10,12}$/, 'Enter a valid phone number').optional().or(z.literal('')),
+  phone: z.string().regex(/^\\d{10}$/, 'Phone must be exactly 10 digits').optional().or(z.literal('')),
   departmentId: z.string().min(1, 'Department is required'),
   designation: z.string().min(1, 'Designation is required'),
   role: z.enum(['ADMIN', 'HR', 'MANAGER', 'PROJECT_MANAGER', 'EMPLOYEE']),
@@ -72,7 +72,7 @@ export const EditEmployeeModal = ({ employee, onClose, onSuccess }: { employee: 
 
       await updateEmployee(employee.id, payload);
       onSuccess();
-    } catch (err: any) {
+    } catch (thrown) { const err = thrown as ApiError;
       setError(err?.response?.data?.message || 'Failed to update employee');
     } finally {
       setIsSubmitting(false);
@@ -118,6 +118,11 @@ export const EditEmployeeModal = ({ employee, onClose, onSuccess }: { employee: 
               <label className="text-sm font-medium">Phone Number</label>
               <input 
                 {...register('phone')} 
+                type="text"
+                maxLength={10}
+                onInput={(e) => {
+                  e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '');
+                }}
                 className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-transparent transition-all"
               />
               {errors.phone && <span className="text-xs text-red-500">{errors.phone.message}</span>}

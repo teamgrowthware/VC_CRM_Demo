@@ -13,6 +13,9 @@ export const createProject = async (req: Request, res: Response) => {
       name: z.string().min(1),
       description: z.string().optional(),
       managerId: z.string().uuid(),
+      teamId: z.string().uuid().optional().nullable(),
+      clientId: z.string().uuid().optional().nullable(),
+      departmentId: z.string().uuid().optional(),
       startDate: z.string(),
       deadline: z.string(),
       status: z.enum(['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED']).optional(),
@@ -34,11 +37,50 @@ export const createProject = async (req: Request, res: Response) => {
       },
       include: {
         manager: true,
+        team: true,
+        client: true,
       }
     });
 
+    // Auto-add manager as a ProjectMember with MANAGER role
+    await prisma.projectMember.create({
+      data: {
+        projectId: project.id,
+        employeeId: validatedData.managerId,
+        role: 'MANAGER'
+      }
+    }).catch(() => {});
+
+    // Auto-add team members as project members
+    if (validatedData.teamId) {
+      const teamMembers = await prisma.teamMember.findMany({
+        where: { teamId: validatedData.teamId },
+        select: { employeeId: true }
+      });
+      for (const tm of teamMembers) {
+        await prisma.projectMember.create({
+          data: {
+            projectId: project.id,
+            employeeId: tm.employeeId,
+            role: 'DEVELOPER'
+          }
+        }).catch(() => {});
+      }
+    }
+
+    // Notify the selected manager
+    const creatorId = (req as any).user.id;
+    if (validatedData.managerId !== creatorId) {
+      await createNotification(
+        validatedData.managerId,
+        'PROJECT_ASSIGNED',
+        `You have been assigned as manager of project "${project.name}"`,
+        `/dashboard/projects/${project.id}`
+      );
+    }
+
     await logActivity(
-      (req as any).user.id,
+      creatorId,
       'PROJECT_CREATED',
       `created project "${project.name}"`,
       'PROJECT',
@@ -57,12 +99,24 @@ export const createProject = async (req: Request, res: Response) => {
 
 export const updateProject = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
+    const user = (req as any).user;
+    if (user?.role !== 'ADMIN') {
+      const managedProject = await prisma.project.findFirst({
+        where: { id, managerId: user?.id },
+        select: { id: true }
+      });
+      if (!managedProject) {
+        return res.status(403).json({ success: false, message: 'Only the project manager can update this project' });
+      }
+    }
     
     const schema = z.object({
       name: z.string().optional(),
       description: z.string().optional(),
       managerId: z.string().uuid().optional(),
+      teamId: z.string().uuid().optional().nullable(),
+      clientId: z.string().uuid().optional().nullable(),
       startDate: z.string().optional(),
       deadline: z.string().optional(),
       status: z.enum(['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED']).optional(),
@@ -71,28 +125,98 @@ export const updateProject = async (req: Request, res: Response) => {
 
     const data = schema.parse(req.body);
 
+    // Check if manager is being changed
+    let oldManagerId: string | null = null;
+    if (data.managerId) {
+      const existingProject = await prisma.project.findUnique({ where: { id }, select: { managerId: true, name: true } });
+      if (existingProject && existingProject.managerId !== data.managerId) {
+        oldManagerId = existingProject.managerId;
+      }
+    }
+
     const updateData: any = { ...data };
     if (data.startDate) updateData.startDate = new Date(data.startDate);
+    else delete updateData.startDate;
     if (data.deadline) updateData.deadline = new Date(data.deadline);
+    else delete updateData.deadline;
     if (data.status) updateData.status = data.status as any;
+    if (!data.links) delete updateData.links;
 
     const project = await prisma.project.update({
       where: { id },
       data: updateData,
       include: {
         manager: true,
+        team: true,
+        client: true,
       }
     });
 
+    // If manager changed, notify new manager and auto-add as member
+    if (data.managerId && oldManagerId) {
+      const updaterId = (req as any).user?.id;
+
+      // Notify new manager
+      if (data.managerId !== updaterId) {
+        await createNotification(
+          data.managerId,
+          'PROJECT_ASSIGNED',
+          `You have been assigned as manager of project "${project.name}"`,
+          `/dashboard/projects/${id}`
+        );
+      }
+
+      // Auto-add new manager as ProjectMember
+      await prisma.projectMember.upsert({
+        where: {
+          projectId_employeeId: { projectId: id, employeeId: data.managerId }
+        },
+        update: { role: 'MANAGER' },
+        create: { projectId: id, employeeId: data.managerId, role: 'MANAGER' }
+      }).catch(() => {});
+    }
+
+    // Auto-add team members if teamId is being set
+    if (data.teamId) {
+      const teamMembers = await prisma.teamMember.findMany({
+        where: { teamId: data.teamId },
+        select: { employeeId: true }
+      });
+      for (const tm of teamMembers) {
+        await prisma.projectMember.upsert({
+          where: {
+            projectId_employeeId: { projectId: id, employeeId: tm.employeeId }
+          },
+        update: {},
+        create: { projectId: id, employeeId: tm.employeeId, role: 'DEVELOPER' }
+        }).catch(() => {});
+      }
+    }
+
     res.json({ success: true, project });
   } catch (error) {
-    res.status(400).json({ success: false, message: 'Update failed' });
+    console.error('Update project error:', error);
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ success: false, message: 'Validation failed', errors: error.issues });
+    } else {
+      res.status(500).json({ success: false, message: 'Failed to update project' });
+    }
   }
 };
 
 export const deleteProject = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
+    const user = (req as any).user;
+    if (user?.role !== 'ADMIN') {
+      const managedProject = await prisma.project.findFirst({
+        where: { id, managerId: user?.id },
+        select: { id: true }
+      });
+      if (!managedProject) {
+        return res.status(403).json({ success: false, message: 'Only the project manager can delete this project' });
+      }
+    }
 
     // 1. Get all tasks in this project
     const tasks = await prisma.task.findMany({
@@ -186,10 +310,10 @@ export const getAllProjects = async (req: Request, res: Response) => {
              { members: { some: { employeeId: userId } } }
           ]
        };
-    } else if (userRole === 'EMPLOYEE') {
+    } else if (userRole === 'PROJECT_MANAGER' || userRole === 'EMPLOYEE') {
        filter = { members: { some: { employeeId: userId } } };
     }
-    // ADMIN and PROJECT_MANAGER see all projects (filter = {})
+    // ADMIN and HR see all projects.
 
     const projects = await prisma.project.findMany({
       where: filter,
@@ -197,6 +321,8 @@ export const getAllProjects = async (req: Request, res: Response) => {
         manager: {
           select: { id: true, name: true, employeeId: true }
         },
+        team: true,
+        client: { select: { id: true, name: true, company: true } },
           members: {
             include: {
               employee: { select: { id: true, name: true } }
@@ -219,13 +345,31 @@ export const getAllProjects = async (req: Request, res: Response) => {
 
 export const getProjectById = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
+    const user = (req as any).user;
+    if (!['ADMIN', 'HR'].includes(user?.role)) {
+      const accessible = await prisma.project.findFirst({
+        where: {
+          id,
+          OR: [
+            { managerId: user?.id },
+            { members: { some: { employeeId: user?.id } } }
+          ]
+        },
+        select: { id: true }
+      });
+      if (!accessible) {
+        return res.status(403).json({ success: false, message: 'Unauthorized to view this project' });
+      }
+    }
     const project = await prisma.project.findUnique({
       where: { id },
       include: {
         manager: {
           select: { id: true, name: true, employeeId: true, email: true }
         },
+        team: true,
+        client: { select: { id: true, name: true, company: true, email: true } },
         members: {
           include: {
             employee: { select: { id: true, name: true, designation: true } }
@@ -261,7 +405,17 @@ export const getProjectById = async (req: Request, res: Response) => {
 
 export const assignEmployeeToProject = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string; // projectId
+    const id = String(req.params.id); // projectId
+    const user = (req as any).user;
+    if (user?.role !== 'ADMIN') {
+      const managedProject = await prisma.project.findFirst({
+        where: { id, managerId: user?.id },
+        select: { id: true }
+      });
+      if (!managedProject) {
+        return res.status(403).json({ success: false, message: 'Only the project manager can manage members' });
+      }
+    }
     const schema = z.object({
       employeeId: z.string().uuid(),
       role: z.enum(['DEVELOPER', 'DESIGNER', 'TESTER', 'MANAGER']).default('DEVELOPER')
@@ -276,9 +430,21 @@ export const assignEmployeeToProject = async (req: Request, res: Response) => {
         role: role as ProjectRole
       },
       include: {
-        employee: { select: { id: true, name: true, designation: true } }
+        employee: { select: { id: true, name: true, designation: true } },
+        project: { select: { id: true, name: true } }
       }
     });
+
+    // Notify the assigned employee
+    const assignerId = (req as any).user?.id;
+    if (employeeId !== assignerId) {
+      await createNotification(
+        employeeId,
+        'PROJECT_ASSIGNED',
+        `You have been assigned to project "${projectMember.project.name}" as ${role}`,
+        `/dashboard/projects/${id}`
+      );
+    }
 
     res.status(201).json({ success: true, member: projectMember });
   } catch (error) {
@@ -293,8 +459,18 @@ export const assignEmployeeToProject = async (req: Request, res: Response) => {
 
 export const removeEmployeeFromProject = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
-    const memberId = req.params.memberId as string;
+    const id = String(req.params.id);
+    const memberId = String(req.params.memberId);
+    const user = (req as any).user;
+    if (user?.role !== 'ADMIN') {
+      const managedProject = await prisma.project.findFirst({
+        where: { id, managerId: user?.id },
+        select: { id: true }
+      });
+      if (!managedProject) {
+        return res.status(403).json({ success: false, message: 'Only the project manager can manage members' });
+      }
+    }
     
     // We expect memberId to be employeeId based on route: DELETE /api/projects/:id/member/:employeeId
     await prisma.projectMember.delete({
@@ -314,7 +490,22 @@ export const removeEmployeeFromProject = async (req: Request, res: Response) => 
 
 export const uploadProjectDocument = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
+
+    const user = (req as any).user;
+    const project = await prisma.project.findUnique({
+      where: { id },
+      select: { id: true, managerId: true, members: { select: { employeeId: true } } }
+    });
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+    const canUpload = ['ADMIN', 'HR'].includes(user?.role)
+      || project.managerId === user?.id
+      || project.members.some((member) => member.employeeId === user?.id);
+    if (!canUpload) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to upload to this project' });
+    }
 
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded' });

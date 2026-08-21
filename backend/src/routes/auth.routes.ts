@@ -13,6 +13,7 @@ router.post('/logout', AuthController.logout);
 router.get('/me', authenticateToken, AuthController.me);
 router.post('/change-password', authenticateToken, AuthController.changePassword);
 router.put('/me', authenticateToken, AuthController.updateSelfProfile);
+router.post('/me/avatar', authenticateToken, AuthController.avatarUpload.single('avatar'), AuthController.uploadAvatar);
 router.post('/forgot-password', forgotPasswordLimiter, AuthController.forgotPassword);
 router.post('/reset-password', resetPasswordLimiter, AuthController.resetPassword);
 

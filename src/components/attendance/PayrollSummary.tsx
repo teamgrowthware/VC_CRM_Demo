@@ -8,7 +8,9 @@ import { toast } from 'sonner';
 const badgeClass: Record<string, string> = {
   ABSENT: 'bg-red-500/10 text-red-400 border border-red-500/20',
   HALFDAY: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
-  PENALTY: 'bg-red-500/10 text-red-400 border border-red-500/20'
+  PENALTY: 'bg-red-500/10 text-red-400 border border-red-500/20',
+  DEDUCTION: 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20',
+  JOINING: 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'
 };
 
 export const PayrollSummary = () => {
@@ -62,6 +64,7 @@ export const PayrollSummary = () => {
   const isTeamView = view === 'team';
 
   const deductionItems: DeductionBreakdownItem[] = payroll?.deductionBreakdown || payroll?.penalties?.map((p) => ({ type: 'PENALTY', label: p.reason, date: p.date, amount: p.amount, id: p.id })) || [];
+  const leaveDetails = payroll?.leaveDetails || [];
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mt-6 shadow-xl relative overflow-hidden">
@@ -132,12 +135,20 @@ export const PayrollSummary = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-zinc-800/80 p-4 rounded-xl border border-zinc-700/50 flex flex-col gap-2">
           <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">{isTeamView ? 'Team Base Salaries' : 'Base Salary'}</span>
           <div className="flex items-center gap-2 text-xl font-bold tracking-tight text-zinc-100">
             <IndianRupee className="w-4 h-4 text-zinc-500" />
             {payroll?.baseSalary?.toLocaleString() || 0}
+          </div>
+        </div>
+
+        <div className="bg-blue-500/10 p-4 rounded-xl border border-blue-500/20 flex flex-col gap-2 relative overflow-hidden">
+          <span className="text-xs font-medium text-blue-400 uppercase tracking-wider">{isTeamView ? 'Total Team Additions' : 'Additions (Bonus/OT)'}</span>
+          <div className="flex items-center gap-2 text-xl font-bold tracking-tight text-blue-400">
+            <IndianRupee className="w-4 h-4 opacity-70" />
+            {((payroll?.totalAddons || 0) + (payroll?.overtimePay || 0)).toLocaleString() || 0}
           </div>
         </div>
 
@@ -176,8 +187,10 @@ export const PayrollSummary = () => {
       </div>
 
       {!isTeamView && (
-        <div className="mt-8">
-          <h3 className="text-sm font-medium text-zinc-300 mb-4 border-b border-zinc-800 pb-2">
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Deductions Column */}
+          <div>
+            <h3 className="text-sm font-medium text-zinc-300 mb-4 border-b border-zinc-800 pb-2">
             Deduction Breakdown ({deductionItems.length} {deductionItems.length === 1 ? 'cut' : 'cuts'} this month)
           </h3>
           {deductionItems.length === 0 ? (
@@ -234,6 +247,108 @@ export const PayrollSummary = () => {
               </div>
             </>
           )}
+
+          {/* Leave Details */}
+          {leaveDetails.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-medium text-zinc-300 mb-4 border-b border-zinc-800 pb-2">
+                Leave Details ({leaveDetails.length} {leaveDetails.length === 1 ? 'leave' : 'leaves'})
+              </h3>
+              <div className="space-y-2">
+                {leaveDetails.map((leave, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-2 h-2 rounded-full ${leave.isPaid ? 'bg-blue-400' : 'bg-red-400'}`} />
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-zinc-200">{leave.leaveType.replace(/_/g, ' ')}</span>
+                          <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                            leave.isPaid
+                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                              : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                          }`}>
+                            {leave.isPaid ? 'PAID' : 'UNPAID'}
+                          </span>
+                        </div>
+                        <span className="text-xs text-zinc-500 mt-1">
+                          {new Date(leave.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} - {new Date(leave.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} ({leave.numberOfDays} days)
+                        </span>
+                        {leave.reason && (
+                          <span className="text-xs text-zinc-600 mt-0.5">{leave.reason}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex gap-4 text-xs font-bold">
+                <span className="text-blue-400">Paid: {payroll?.paidLeaveDays ?? 0} days</span>
+                <span className="text-red-400">Unpaid: {payroll?.unpaidLeaveDays ?? 0} days</span>
+              </div>
+            </div>
+          )}
+          </div>
+
+          {/* Additions Column */}
+          <div>
+            <h3 className="text-sm font-medium text-zinc-300 mb-4 border-b border-zinc-800 pb-2">
+              Additions Breakdown
+            </h3>
+            {(!payroll?.addons?.length && !payroll?.overtimePay) ? (
+              <div className="p-4 rounded-lg bg-zinc-800/50 border border-zinc-700/50 text-zinc-400 text-sm font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                No additional bonuses or overtime this month.
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {payroll.overtimePay ? (
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                      <div className="flex items-center gap-3">
+                        <span className="w-2 h-2 rounded-full bg-blue-400" />
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 w-max">
+                            Overtime
+                          </span>
+                          <span className="text-xs text-zinc-500 mt-1">{payroll.overtimeHours} hrs logged</span>
+                        </div>
+                      </div>
+                      <div className="text-sm font-bold text-blue-400 flex items-center gap-1">
+                        + <IndianRupee className="w-3 h-3" /> {payroll.overtimePay.toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                  ) : null}
+                  {payroll?.addons?.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                      <div className="flex items-center gap-3">
+                        <span className="w-2 h-2 rounded-full bg-indigo-400" />
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 w-max">
+                              {item.type}
+                            </span>
+                            {item.reason && (
+                              <span className="text-sm font-medium text-zinc-200">{item.reason}</span>
+                            )}
+                          </div>
+                          <span className="text-xs text-zinc-500 mt-1">{new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                        </div>
+                      </div>
+                      <div className="text-sm font-bold text-indigo-400 flex items-center gap-1">
+                        + <IndianRupee className="w-3 h-3" /> {item.amount.toLocaleString('en-IN')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 p-3 rounded-lg bg-zinc-800/80 border border-zinc-700/50 flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-300">Total Additions</span>
+                  <span className="text-sm font-bold text-blue-400">
+                    + <IndianRupee className="w-3 h-3 inline" /> {((payroll?.totalAddons || 0) + (payroll?.overtimePay || 0)).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -253,6 +368,8 @@ export const PayrollSummary = () => {
                     <th className="px-3 py-2.5">Half</th>
                     <th className="px-3 py-2.5">Fines</th>
                     <th className="px-3 py-2.5 text-right">Cut Total</th>
+                    <th className="px-3 py-2.5 text-right">OT / Bonus</th>
+                    <th className="px-3 py-2.5 text-right">Gross</th>
                     <th className="px-3 py-2.5 text-right">Net</th>
                     <th className="px-3 py-2.5 text-right"></th>
                   </tr>
@@ -270,14 +387,16 @@ export const PayrollSummary = () => {
                         <td className="px-3 py-2.5 text-sm text-zinc-400">{emp.halfDays}</td>
                         <td className="px-3 py-2.5 text-sm text-red-400">{emp.totalPenalties.toLocaleString('en-IN')}</td>
                         <td className="px-3 py-2.5 text-sm font-bold text-red-400 text-right">{emp.attendanceDeductions.toLocaleString('en-IN')}</td>
-                        <td className="px-3 py-2.5 text-sm font-bold text-emerald-400 text-right">{emp.netSalary.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-blue-400 text-right">{((emp.totalAddons || 0) + (emp.overtimePay || 0)).toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-emerald-400 text-right">{emp.grossEarnings?.toLocaleString('en-IN') || emp.baseSalary.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-indigo-400 text-right">{emp.netSalary.toLocaleString('en-IN')}</td>
                         <td className="px-3 py-2.5 text-right text-zinc-500">
                           {expandedEmp === emp.id ? <ChevronUp className="w-4 h-4 inline" /> : <ChevronDown className="w-4 h-4 inline" />}
                         </td>
                       </tr>
                       {expandedEmp === emp.id && (
                         <tr>
-                          <td colSpan={8} className="px-4 py-3 bg-zinc-900/50">
+                          <td colSpan={10} className="px-4 py-3 bg-zinc-900/50">
                             {emp.deductions.length === 0 ? (
                               <p className="text-sm text-emerald-400 font-medium">No deductions for this employee this month.</p>
                             ) : (
@@ -285,7 +404,7 @@ export const PayrollSummary = () => {
                                 {emp.deductions.map((item, idx) => (
                                   <div key={idx} className="flex items-center justify-between p-2.5 rounded-md bg-zinc-800/50">
                                     <div className="flex items-center gap-2">
-                                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${badgeClass[item.type]}`}>
+                                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${badgeClass[item.type] || 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'}`}>
                                         {item.type === 'PENALTY' ? 'Fine' : item.label}
                                       </span>
                                       {item.type === 'PENALTY' && item.label && (
@@ -312,6 +431,23 @@ export const PayrollSummary = () => {
                                     </div>
                                   </div>
                                 ))}
+                              </div>
+                            )}
+                            {emp.leaveDetails && emp.leaveDetails.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-zinc-800">
+                                <p className="text-xs font-bold text-zinc-400 mb-2">Leaves ({emp.paidLeaveDays ?? 0} Paid / {emp.unpaidLeaveDays ?? 0} Unpaid)</p>
+                                <div className="space-y-1.5">
+                                  {emp.leaveDetails.map((leave, idx) => (
+                                    <div key={idx} className="flex items-center gap-2 text-xs">
+                                      <span className={`w-1.5 h-1.5 rounded-full ${leave.isPaid ? 'bg-blue-400' : 'bg-red-400'}`} />
+                                      <span className="text-zinc-300">{leave.leaveType.replace(/_/g, ' ')}</span>
+                                      <span className={`text-[9px] font-bold uppercase px-1 py-0.5 rounded ${leave.isPaid ? 'bg-blue-500/10 text-blue-400' : 'bg-red-500/10 text-red-400'}`}>
+                                        {leave.isPaid ? 'PAID' : 'UNPAID'}
+                                      </span>
+                                      <span className="text-zinc-500">{leave.numberOfDays}d</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </td>

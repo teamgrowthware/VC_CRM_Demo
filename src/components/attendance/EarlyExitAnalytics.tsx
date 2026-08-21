@@ -124,7 +124,7 @@ export default function EarlyExitAnalytics() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-[11px] font-bold text-zinc-400">{format(new Date(r.date), 'MMM dd, yyyy')}</span>
+                          <span className="text-[11px] font-bold text-zinc-400">{format(new Date(r.date), 'MMM dd, yyyy - hh:mm a')}</span>
                         </div>
                         <p className="text-xs text-zinc-300 italic truncate">&quot;{r.reason}&quot;</p>
                       </div>

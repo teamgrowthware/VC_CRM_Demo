@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, Users, Trash2, LogOut, Plus, UserMinus, Loader2, Hash, Pencil } from 'lucide-react';
-import { ChatRoom, updateChatGroup, addGroupMember, removeGroupMember, softDeleteChatGroup } from '@/lib/api/chat';
+import React, { useState, useRef } from 'react';
+import { X, Users, Trash2, LogOut, Plus, UserMinus, Loader2, Hash, Pencil, Camera } from 'lucide-react';
+import { ChatRoom, updateChatGroup, addGroupMember, removeGroupMember, softDeleteChatGroup, uploadChatFile } from '@/lib/api/chat';
+import { API_URL } from '@/lib/api/apiClient';
 import { Employee } from '@/types/employee';
 import { toast } from 'sonner';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface ChatUser {
   id: string;
@@ -19,25 +21,32 @@ interface GroupInfoModalProps {
   room: ChatRoom;
   currentUser: ChatUser;
   employees: Employee[];
+  clients: any[];
   onRefresh: () => Promise<void>;
   onLeave: (roomId: string) => void;
 }
 
-export default function GroupInfoModal({ isOpen, onClose, room, currentUser, employees, onRefresh, onLeave }: GroupInfoModalProps) {
+export default function GroupInfoModal({ isOpen, onClose, room, currentUser, employees, clients, onRefresh, onLeave }: GroupInfoModalProps) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(room?.name || '');
   const [description, setDescription] = useState(room?.description || '');
   const [addingMember, setAddingMember] = useState(false);
   const [selectedMember, setSelectedMember] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(room?.avatarUrl || '');
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen || !room) return null;
 
-  const myMember = room.members.find(m => m.employeeId === currentUser?.id);
+  const myMember = room.members.find(m => m.employeeId === currentUser?.id || m.clientId === currentUser?.id);
   const isGroupAdmin = myMember?.isAdmin || currentUser?.role === 'ADMIN';
   const members = room.members || [];
-  const memberIds = new Set(members.map(m => m.employeeId));
-  const availableEmployees = employees.filter(emp => !memberIds.has(emp.id));
+  const memberEmployeeIds = new Set(members.map(m => m.employeeId).filter(Boolean));
+  const memberClientIds = new Set(members.map(m => m.clientId).filter(Boolean));
+  
+  const availableEmployees = employees.filter(emp => !memberEmployeeIds.has(emp.id));
+  const availableClients = (clients || []).filter(c => !memberClientIds.has(c.id));
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -62,7 +71,14 @@ export default function GroupInfoModal({ isOpen, onClose, room, currentUser, emp
     if (!selectedMember) return;
     setBusy(true);
     try {
-      await addGroupMember(room.id, selectedMember);
+      const isClient = selectedMember.startsWith('CLIENT_');
+      const realId = selectedMember.replace('CLIENT_', '');
+      
+      if (isClient) {
+        await addGroupMember(room.id, undefined, realId);
+      } else {
+        await addGroupMember(room.id, realId, undefined);
+      }
       toast.success('Member added');
       setSelectedMember('');
       setAddingMember(false);
@@ -111,12 +127,69 @@ export default function GroupInfoModal({ isOpen, onClose, room, currentUser, emp
     }
   };
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    setBusy(true);
+    setUploadingPhoto(true);
+    try {
+      const uploadRes = await uploadChatFile(file);
+      await updateChatGroup(room.id, { avatarUrl: uploadRes.url } as any);
+      setAvatarUrl(uploadRes.url);
+      toast.success('Group photo updated');
+      await onRefresh();
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to upload photo');
+    } finally {
+      setBusy(false);
+      setUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 animate-in zoom-in-95 duration-200">
         <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-zinc-900/50">
-          <div className="flex items-center gap-2 min-w-0">
-            <Hash className="w-5 h-5 text-blue-600 flex-shrink-0" />
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative group flex-shrink-0">
+              <div 
+                className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-sm overflow-hidden cursor-pointer"
+                onClick={() => isGroupAdmin && photoInputRef.current?.click()}
+              >
+                {uploadingPhoto ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : avatarUrl ? (
+                  <img 
+                    src={avatarUrl.startsWith('http') ? avatarUrl : `${API_URL.replace('/api', '')}${avatarUrl}`} 
+                    alt="Group" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Hash className="w-5 h-5" />
+                )}
+              </div>
+              {isGroupAdmin && (
+                <div 
+                  className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  onClick={() => photoInputRef.current?.click()}
+                >
+                  <Camera className="w-4 h-4 text-white" />
+                </div>
+              )}
+              <input 
+                type="file" 
+                ref={photoInputRef} 
+                onChange={handlePhotoUpload}
+                className="hidden" 
+                accept="image/*"
+              />
+            </div>
             <h2 className="font-bold text-zinc-900 dark:text-zinc-100 truncate">{room.name || 'Group'}</h2>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full transition-colors">
@@ -198,10 +271,17 @@ export default function GroupInfoModal({ isOpen, onClose, room, currentUser, emp
                   onChange={(e) => setSelectedMember(e.target.value)}
                   className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 >
-                  <option value="">Select employee...</option>
-                  {availableEmployees.map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.designation})</option>
-                  ))}
+                  <option value="">Select someone to add...</option>
+                  <optgroup label="Employees">
+                    {availableEmployees.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.name} ({emp.designation})</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Clients">
+                    {availableClients.map(client => (
+                      <option key={`client-${client.id}`} value={`CLIENT_${client.id}`}>{client.name} {client.company ? `(${client.company})` : ''}</option>
+                    ))}
+                  </optgroup>
                 </select>
                 <button
                   onClick={handleAddMember}
@@ -222,9 +302,7 @@ export default function GroupInfoModal({ isOpen, onClose, room, currentUser, emp
                 const memberKey = member.employeeId || member.clientId;
                 return (
                   <div key={memberKey} className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                      {name.charAt(0)}
-                    </div>
+                    <UserAvatar name={name} avatarUrl={(member as { avatarUrl?: string }).avatarUrl} size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate flex items-center gap-2">
                         {name}
@@ -235,9 +313,9 @@ export default function GroupInfoModal({ isOpen, onClose, room, currentUser, emp
                         {isClient ? (member.client?.company || 'Client') : (member.isAdmin ? 'Group Admin' : 'Member')}
                       </p>
                     </div>
-                    {isGroupAdmin && !isSelf && member.employeeId && (
+                    {isGroupAdmin && !isSelf && (
                       <button
-                        onClick={() => handleRemoveMember(member.employeeId!)}
+                        onClick={() => handleRemoveMember(memberKey!)}
                         disabled={busy}
                         className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                         title="Remove member"

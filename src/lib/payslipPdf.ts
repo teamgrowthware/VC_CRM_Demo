@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable, { CellInput } from 'jspdf-autotable';
-import { Payslip, PayslipData, PayslipItem, PayslipPenalty } from '@/lib/api/payslip';
+import { Payslip, PayslipData, PayslipItem, PayslipPenalty, PayslipLeave, PayslipDeductionBreakdownItem } from '@/lib/api/payslip';
 
 type PdfWithAutoTable = jsPDF & { lastAutoTable: { finalY: number } };
 
@@ -143,6 +143,44 @@ export const downloadPayslipPdf = async (payslip: Payslip) => {
 
   let cursorY = doc.lastAutoTable.finalY + 6;
 
+  // Leave Details
+  const leaves: PayslipLeave[] = data.leaves || [];
+  if (leaves.length > 0) {
+    const leaveRows: CellInput[][] = leaves.map(l => [
+      `${new Date(l.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} - ${new Date(l.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`,
+      l.leaveType.replace(/_/g, ' '),
+      String(l.numberOfDays),
+      l.reason.length > 30 ? l.reason.substring(0, 30) + '...' : l.reason,
+      l.isPaid ? 'PAID' : 'UNPAID'
+    ]);
+
+    autoTable(doc, {
+      startY: cursorY,
+      margin: { left: margin, right: margin },
+      theme: 'grid',
+      styles: { fontSize: 7.5, cellPadding: 1.5, textColor: [63, 63, 70], lineColor: [228, 228, 231], lineWidth: 0.3 },
+      headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold' },
+      head: [['PERIOD', 'TYPE', 'DAYS', 'REASON', 'STATUS']],
+      body: leaveRows,
+      columnStyles: {
+        0: { cellWidth: 32 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 14, halign: 'center' },
+        3: { cellWidth: 55 },
+        4: { cellWidth: 22, halign: 'center' }
+      }
+    });
+
+    cursorY = doc.lastAutoTable.finalY + 3;
+
+    // Paid/Unpaid summary
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(82, 82, 91);
+    doc.text(`Paid Leaves: ${data.paidLeaveDays ?? 0}  |  Unpaid Leaves: ${data.unpaidLeaveDays ?? 0}`, margin, cursorY);
+    cursorY += 6;
+  }
+
   // Earnings
   const addons: PayslipItem[] = earnings.addons || [];
   const earningRows: CellInput[][] = [['Base Salary', formatINR(data.baseSalary || earnings.baseSalary || payslip.netSalary)]];
@@ -165,10 +203,24 @@ export const downloadPayslipPdf = async (payslip: Payslip) => {
   // Deductions
   const custom: PayslipItem[] = deductions.customDeductions || [];
   const penalties: PayslipPenalty[] = deductions.penalties || [];
+  const deductionBreakdown: PayslipDeductionBreakdownItem[] = data.deductionBreakdown || [];
   const deductionRows: CellInput[][] = [];
-  if (deductions.attendanceDeduction) deductionRows.push(['Attendance / Leave Deduction', formatINR(deductions.attendanceDeduction)]);
-  if (deductions.halfDayDeduction) deductionRows.push(['Half-Day Deduction', formatINR(deductions.halfDayDeduction)]);
-  if (deductions.joiningDeduction) deductionRows.push(['Joining Pro-rata Deduction', formatINR(deductions.joiningDeduction)]);
+
+  if (deductionBreakdown.length > 0) {
+    deductionBreakdown.forEach(d => {
+      const label = d.type === 'ABSENT' ? `Absent - ${d.label}` :
+                    d.type === 'HALFDAY' ? `Half Day - ${d.label}` :
+                    d.type === 'PENALTY' ? `Fine - ${d.label}` :
+                    d.type === 'JOINING' ? 'Joining Pro-rata' :
+                    d.label;
+      const dateStr = new Date(d.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+      deductionRows.push([`${label} (${dateStr})`, formatINR(d.amount)]);
+    });
+  } else {
+    if (deductions.attendanceDeduction) deductionRows.push(['Attendance / Leave Deduction', formatINR(deductions.attendanceDeduction)]);
+    if (deductions.halfDayDeduction) deductionRows.push(['Half-Day Deduction', formatINR(deductions.halfDayDeduction)]);
+    if (deductions.joiningDeduction) deductionRows.push(['Joining Pro-rata Deduction', formatINR(deductions.joiningDeduction)]);
+  }
   custom.forEach((d) => deductionRows.push([`${d.type}${d.reason ? ` (${d.reason})` : ''}`, formatINR(d.amount)]));
   penalties.forEach((p) => deductionRows.push([`Penalty${p.reason ? ` - ${p.reason}` : ''}`, formatINR(p.amount)]));
   if (deductionRows.length === 0) deductionRows.push(['No Deductions', 'Rs. 0']);
@@ -210,6 +262,12 @@ export const downloadPayslipPdf = async (payslip: Payslip) => {
   doc.setTextColor(82, 82, 91);
   const attText = `Attendance: ${attendance.presentDays ?? 0} Present  |  ${attendance.absentDays ?? 0} Absent  |  ${attendance.halfDays ?? 0} Half  |  ${attendance.lateMarks ?? 0} Late  |  Productive: ${attendance.productiveHours ?? 0} hrs`;
   doc.text(attText, margin, cursorY);
+  cursorY += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 100, 110);
+  const leaveText = `Leaves: ${data.paidLeaveDays ?? 0} Paid  |  ${data.unpaidLeaveDays ?? 0} Unpaid`;
+  doc.text(leaveText, margin, cursorY);
   cursorY += 8;
 
   doc.setDrawColor(228, 228, 231);

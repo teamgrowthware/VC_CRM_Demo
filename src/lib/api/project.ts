@@ -28,6 +28,15 @@ export interface MilestoneStats {
   partiallyPaidCount: number;
 }
 
+export interface PaymentInput {
+  milestoneId?: string;
+  amount: number;
+  mode?: string;
+  transactionId?: string;
+  date?: string;
+  notes?: string;
+}
+
 
 export const getAllProjects = async (): Promise<Project[]> => {
   const { data } = await apiClient.get(`/projects`);
@@ -78,17 +87,17 @@ export const getProjectMilestones = async (projectId: string) => {
   return data.milestones;
 };
 
-export const createMilestone = async (projectId: string, milestone: any) => {
+export const createMilestone = async (projectId: string, milestone: Partial<Milestone>) => {
   const { data } = await apiClient.post(`/projects/${projectId}/milestones`, milestone);
   return data.milestone;
 };
 
-export const updateMilestone = async (milestoneId: string, updates: any) => {
+export const updateMilestone = async (milestoneId: string, updates: Partial<Milestone>) => {
   const { data } = await apiClient.put(`/projects/milestones/${milestoneId}`, updates);
   return data.milestone;
 };
 
-export const recordPayment = async (projectId: string, payment: any) => {
+export const recordPayment = async (projectId: string, payment: PaymentInput) => {
   const { data } = await apiClient.post(`/projects/${projectId}/payments`, payment);
   return data.payment;
 };

@@ -21,12 +21,18 @@ export const generatePayroll = async (month: number, year: number) => {
   return response.data.data;
 };
 
-export const paySalary = async (id: string, data: { paymentMode: string, paymentDate?: string }) => {
-  const response = await apiClient.patch(`/admin/finance/payroll/${id}/pay`, data);
+export const paySalary = async (id: string, data: { paymentMode: string, paymentDate?: string, paymentProof?: File }) => {
+  const formData = new FormData();
+  formData.append('paymentMode', data.paymentMode);
+  if (data.paymentDate) formData.append('paymentDate', data.paymentDate);
+  if (data.paymentProof) formData.append('paymentProof', data.paymentProof);
+  const response = await apiClient.patch(`/admin/finance/payroll/${id}/pay`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return response.data.data;
 };
 
-export const addDeduction = async (data: any) => {
+export const addDeduction = async (data: Record<string, unknown>) => {
   const response = await apiClient.post(`/admin/finance/deductions`, data);
   return response.data.data;
 };
@@ -44,7 +50,7 @@ export const deleteDeduction = async (id: string) => {
   return response.data;
 };
 
-export const addAddon = async (data: any) => {
+export const addAddon = async (data: Record<string, unknown>) => {
   const response = await apiClient.post(`/admin/finance/addons`, data);
   return response.data.data;
 };
@@ -62,13 +68,13 @@ export const deleteAddon = async (id: string) => {
   return response.data;
 };
 
-export const getExpenses = async (params?: any) => {
+export const getExpenses = async (params?: Record<string, string>) => {
   const query = new URLSearchParams(params).toString();
   const response = await apiClient.get(`/admin/finance/expenses?${query}`);
   return response.data.data;
 };
 
-export const addExpense = async (data: any) => {
+export const addExpense = async (data: Record<string, unknown>) => {
   const response = await apiClient.post(`/admin/finance/expenses`, data);
   return response.data.data;
 };
@@ -83,7 +89,7 @@ export const getPettyCash = async () => {
   return response.data.data;
 };
 
-export const addPettyCash = async (data: any) => {
+export const addPettyCash = async (data: Record<string, unknown>) => {
   const response = await apiClient.post(`/admin/finance/petty-cash`, data);
   return response.data.data;
 };

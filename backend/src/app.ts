@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import { initSentry, Sentry } from './lib/sentry';
 import authRoutes from './routes/auth.routes';
 import employeeRoutes from './routes/employee.routes';
 import attendanceRoutes from './routes/attendance.routes';
@@ -26,7 +27,6 @@ import portfolioRoutes from './routes/portfolio.routes';
 import financeRoutes from './routes/finance.routes';
 import agentRoutes from './routes/agent.routes';
 import pilotRoutes from './routes/pilot.routes';
-import demoRoutes from './routes/demo.routes';
 import sprintRoutes from './routes/sprint.routes';
 import announcementRoutes from './routes/announcement.routes';
 import eventRoutes from './routes/event.routes';
@@ -35,11 +35,13 @@ import pushRoutes from './routes/push.routes';
 import timeRoutes from './routes/time.routes';
 import clientRoutes from './routes/client.routes';
 import invoiceRoutes from './routes/invoice.routes';
-import { authenticateToken, authorizeRoles } from './middleware/auth.middleware';
+import teamRoutes from './routes/team.routes';
 import { authLimiter, registerLimiter } from './middleware/rateLimit.middleware';
 import { csrfProtect } from './middleware/csrf.middleware';
-import { ADMIN_EMAIL } from './lib/config';
 const app = express();
+
+// Initialize Sentry error tracking (no-op if SENTRY_DSN is not set)
+initSentry();
 
 // Middleware
 const allowedOrigins = process.env.FRONTEND_URL 
@@ -112,7 +114,6 @@ app.use('/api/admin/finance', financeRoutes);
 app.use('/api/timesheets', timesheetRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/pilot', pilotRoutes);
-app.use('/api/demo', demoRoutes);
 app.use('/api/sprints', sprintRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/events', eventRoutes);
@@ -122,6 +123,7 @@ app.use('/api/time', timeRoutes);
 app.use('/api/clients', clientRoutes.management);
 app.use('/api/client', clientRoutes.portal);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/teams', teamRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -133,63 +135,8 @@ app.get('/', (req, res) => {
   res.status(200).send('Vortex Cubes CRM API is running');
 });
 
-app.get('/api/auth/force-seed', authenticateToken, authorizeRoles('ADMIN'), async (req, res) => {
-  try {
-    const prisma = require('./lib/prisma').default;
-    const bcrypt = require('bcryptjs');
-    
-    // Clean up any weird state involving admin email or VC001
-    await prisma.employee.deleteMany({
-      where: {
-        OR: [
-          { email: ADMIN_EMAIL || '' },
-          { employeeId: 'VC001' }
-        ]
-      }
-    });
-
-    let seedPassword = process.env.ADMIN_SEED_PASSWORD;
-    let generated = false;
-    if (!seedPassword) {
-      seedPassword = require('crypto').randomBytes(12).toString('base64url');
-      generated = true;
-    }
-    const adminPassword = await bcrypt.hash(seedPassword, 10);
-    const updated = await prisma.employee.create({
-      data: {
-        employeeId: 'VC001',
-        name: 'Vortex Admin',
-        email: ADMIN_EMAIL || 'admin@vortexcubes.com',
-        password: adminPassword,
-        designation: 'System Administrator',
-        role: 'ADMIN',
-        joiningDate: new Date(),
-      }
-    });
-
-    if (generated) {
-      console.log('[force-seed] No ADMIN_SEED_PASSWORD set. Generated a random admin password (shown once).');
-    }
-
-    try {
-      await prisma.activityLog.create({
-        data: {
-          type: 'ADMIN_RESET',
-          message: `${(req as any).user?.name || 'Admin'} reset the admin account`,
-          entityType: 'AUTH',
-          entityId: updated.id,
-          userId: (req as any).user?.id,
-        }
-      });
-    } catch (auditErr) {
-      console.error('[AUDIT] force-seed audit write failed:', auditErr);
-    }
-
-    res.json({ success: true, message: "Admin reset successful." });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
+// Sentry error handler must come before any other error middleware (no-op if not initialized)
+Sentry.setupExpressErrorHandler(app);
 
 // Multer / upload error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

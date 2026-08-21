@@ -25,6 +25,8 @@ export interface AttendanceStats {
   onLeave: number;
   weekend?: number;
   weekendWork?: number;
+  holiday?: number;
+  holidayWork?: number;
   trend: AttendanceTrend[];
 }
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule, type GridApi } from 'ag-grid-community';
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 import { Employee } from '@/types/employee';
@@ -14,19 +14,18 @@ import { CreateEmployeeModal } from './CreateEmployeeModal';
 import { EditEmployeeModal } from './EditEmployeeModal';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
-import { toast } from 'sonner';
 
 export const EmployeeManager = () => {
   const { user } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-  const gridApiRef = useRef<GridApi | null>(null);
   
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const gridRef = useRef<any>(null);
+  const [showInactive, setShowInactive] = useState(false);
 
   const loadData = async () => {
     try {
@@ -57,31 +56,12 @@ export const EmployeeManager = () => {
     if (!confirm(`Are you sure you want to deactivate ${employee.name}?`)) return;
     try {
       await deleteEmployee(employee.id);
-      toast.success(`${employee.name} has been deactivated`);
       loadData();
     } catch (error) {
       console.error("Failed to delete employee", error);
-      toast.error('Failed to deactivate employee');
+      alert('Failed to delete employee');
     }
   };
-
-  const handleToggleFilters = useCallback(() => {
-    if (!gridApiRef.current) return;
-    showFilters ? gridApiRef.current.setFilterModel(null) : null;
-    setShowFilters(prev => !prev);
-  }, [showFilters]);
-
-  const handleExport = useCallback(() => {
-    if (!gridApiRef.current) return;
-    gridApiRef.current.exportDataAsCsv({
-      fileName: `employees_${new Date().toISOString().split('T')[0]}.csv`
-    });
-    toast.success('Employee data exported successfully');
-  }, []);
-
-  const onGridReady = useCallback((params: any) => {
-    gridApiRef.current = params.api;
-  }, []);
 
   const [colDefs] = useState<ColDef<Employee>[]>([
     { field: 'employeeId', headerName: 'ID', minWidth: 100, pinned: 'left', sort: 'asc' },
@@ -163,9 +143,9 @@ export const EmployeeManager = () => {
       flex: 1,
       minWidth: 100,
       filter: true,
-      floatingFilter: showFilters,
+      floatingFilter: false,
     };
-  }, [showFilters]);
+  }, []);
 
   const onFilterTextBoxChanged = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(e.target.value);
@@ -189,18 +169,20 @@ export const EmployeeManager = () => {
 
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <button 
-            onClick={handleToggleFilters}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${
-              showFilters 
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
-                : 'border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-            }`}
+            onClick={() => setShowInactive(!showInactive)}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${showInactive ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400' : 'border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
           >
             <Filter className="w-4 h-4" />
-            <span className="hidden sm:inline">Filter</span>
+            <span className="hidden sm:inline">{showInactive ? 'Show Active Only' : 'Show All Employees'}</span>
           </button>
           <button 
-            onClick={handleExport}
+            onClick={() => {
+              if (gridRef.current?.api) {
+                gridRef.current.api.exportDataAsCsv({ fileName: 'employees_export.csv' });
+              } else {
+                console.error("Grid API not ready");
+              }
+            }}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <Download className="w-4 h-4" />
@@ -221,8 +203,9 @@ export const EmployeeManager = () => {
       {/* Grid */}
       <div className="h-[600px] w-full ag-theme-quartz dark:ag-theme-quartz-dark custom-ag-grid">
         <AgGridReact
+          ref={gridRef}
           theme={themeQuartz}
-          rowData={employees}
+          rowData={showInactive ? employees : employees.filter(e => e.status === 'ACTIVE')}
           columnDefs={colDefs}
           defaultColDef={defaultColDef}
           quickFilterText={searchText}
@@ -231,7 +214,6 @@ export const EmployeeManager = () => {
           paginationPageSizeSelector={[15, 30, 50, 100]}
           animateRows={true}
           rowSelection="multiple"
-          onGridReady={onGridReady}
         />
       </div>
 

@@ -62,12 +62,15 @@ const DEFAULT_RULEBOOK = `🏢 Company Policies & Guidelines
 🕒 1. Office Timings & Attendance
 • Standard office hours are from 09:30 AM to 06:30 PM.
 • Employees must log their attendance via the portal immediately upon arrival.
-• Late Coming: Arrival after 09:50 AM will be marked as "Late".
-• 3 Late marks in a month will result in a deduction of 0.5 days of leave/salary.
+• Late Coming: Arrival after 09:45 AM will be marked as "Late".
+• 3 Late marks allowed per month (just a warning).
+• 4th late in a month = Half-Day deduction.
+• 6th late in a month = Full-Day (Absent) deduction.
 
 🌓 2. Half-Day Policy
-• Working for less than 4.5 hours in a day will be strictly considered a Half-Day.
-• Arriving after 01:30 PM will also be marked as a Half-Day.
+• Working for less than 4 hours in a day will be considered a Half-Day.
+• Arriving after 10:00 AM (if enabled) or 01:00 PM will be marked as a Half-Day.
+• Arriving after 02:00 PM will be marked as ABSENT (full day deduction).
 • Approval for planned half-days must be sought at least 24 hours in advance.
 
 ☕ 3. Break Timings
@@ -76,6 +79,7 @@ const DEFAULT_RULEBOOK = `🏢 Company Policies & Guidelines
 • Exceeding the allocated break time frequently will affect the daily productivity score.
 
 🚫 4. Leaves & Absences
+• Employees are entitled to only 1 Paid Leave.
 • All planned leaves must be applied for at least 3 days in advance.
 • Uninformed absences will be marked as Leave Without Pay (LWP) and may attract disciplinary action.
 • Sick leaves requiring more than 2 days off will need a medical certificate.

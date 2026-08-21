@@ -14,7 +14,7 @@ const createEmployeeSchema = z.object({
   name: z.string().min(2, 'Name is required'),
   email: z.string().email('Invalid email address'),
   password: z.string().regex(PASSWORD_REGEX, PASSWORD_POLICY_MESSAGE).optional(),
-  phone: z.string().min(10, 'Phone number should be valid').optional(),
+  phone: z.string().regex(/^\\d{10}$/, 'Phone number must be exactly 10 digits').optional().or(z.literal('')),
   departmentId: z.string().min(1, 'Department is required'),
   designation: z.string().min(1, 'Designation is required'),
   role: z.enum(['ADMIN', 'HR', 'MANAGER', 'PROJECT_MANAGER', 'EMPLOYEE']).default('EMPLOYEE'),
@@ -25,6 +25,7 @@ const createEmployeeSchema = z.object({
 
 const updateEmployeeSchema = createEmployeeSchema.partial().extend({
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+  avatarUrl: z.string().optional().nullable(),
 });
 
 export const createEmployee = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -150,7 +151,7 @@ export const getAllEmployees = async (req: AuthRequest, res: Response): Promise<
 
 export const getEmployeeById = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     
     // Role checks
     if (req.user.role === 'EMPLOYEE' && req.user.id !== id) {
@@ -192,7 +193,7 @@ export const getEmployeeById = async (req: AuthRequest, res: Response): Promise<
 
 export const updateEmployee = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const validatedData = updateEmployeeSchema.parse(req.body);
     if (validatedData.email) {
       validatedData.email = validatedData.email.toLowerCase().trim();
@@ -286,7 +287,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response): Promise<v
 
 export const toggleEmployeeStatus = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     
     const employee = await prisma.employee.findUnique({ where: { id } });
     if (!employee) {
@@ -327,11 +328,16 @@ export const toggleEmployeeStatus = async (req: AuthRequest, res: Response): Pro
 
 export const deleteEmployee = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
 
     const target = await prisma.employee.findUnique({ where: { id } });
     if (!target) {
       res.status(404).json({ success: false, message: 'Employee not found' });
+      return;
+    }
+
+    if (req.user.id === id) {
+      res.status(400).json({ success: false, message: 'You cannot deactivate your own account' });
       return;
     }
 

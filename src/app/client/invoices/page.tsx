@@ -5,7 +5,7 @@ import { Loader2, Receipt, IndianRupee, Clock, CheckCircle2, AlertTriangle, Cale
 import { getMyInvoices, approveInvoice, payInvoice, ClientInvoice } from '@/lib/api/client';
 import { toast } from 'sonner';
 
-const statusConfig: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+const statusConfig: Record<string, { label: string; color: string; bg: string; icon: React.ComponentType<{ className?: string }> }> = {
   DRAFT: { label: 'Draft', color: 'text-muted-foreground', bg: 'bg-muted', icon: Clock },
   SENT: { label: 'Sent', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', icon: ChevronRight },
   APPROVED: { label: 'Approved', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', icon: CheckCircle2 },
@@ -42,7 +42,7 @@ export default function ClientInvoicesPage() {
     try {
       const data = await getMyInvoices();
       setInvoices(data);
-    } catch (e) {
+    } catch (thrown) { const e = thrown as ApiError;
       console.error(e);
     } finally {
       setLoading(false);
@@ -57,7 +57,7 @@ export default function ClientInvoicesPage() {
       await approveInvoice(invoiceId);
       toast.success('Invoice approved');
       await loadInvoices();
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       toast.error(e.response?.data?.message || 'Failed to approve');
     }
   };
@@ -71,7 +71,7 @@ export default function ClientInvoicesPage() {
       setPayModal({ open: false, invoice: null });
       setTransactionId('');
       await loadInvoices();
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       toast.error(e.response?.data?.message || 'Payment failed');
     } finally {
       setProcessing(false);

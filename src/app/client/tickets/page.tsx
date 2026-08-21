@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, LifeBuoy, Plus, MessageSquare, Clock, CheckCircle2, AlertCircle, XCircle, Filter } from 'lucide-react';
+import { Loader2, LifeBuoy, Plus } from 'lucide-react';
 import { getMyTickets, SupportTicket } from '@/lib/api/client';
-import { toast } from 'sonner';
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
   OPEN: { label: 'Open', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30' },
@@ -178,6 +177,6 @@ export default function ClientTicketsPage() {
   );
 }
 
-function ChevronRight(props: any) {
+function ChevronRight(props: React.SVGProps<SVGSVGElement>) {
   return <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m9 18 6-6-6-6"/></svg>;
 }

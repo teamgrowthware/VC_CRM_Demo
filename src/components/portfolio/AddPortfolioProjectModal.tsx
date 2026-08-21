@@ -63,9 +63,9 @@ export default function AddPortfolioProjectModal({ isOpen, onClose, onSuccess, e
       }
       onSuccess();
       onClose();
-    } catch (error: any) {
+    } catch (thrown) { const error = thrown as ApiError;
       console.error('Failed to save portfolio project:', error);
-      toast.error(error.response?.data?.error?.[0]?.message || 'Failed to save portfolio project');
+      toast.error(error.response?.data?.error || 'Failed to save portfolio project');
     } finally {
       setLoading(false);
     }

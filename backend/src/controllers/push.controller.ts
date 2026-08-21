@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import webpush from 'web-push';
 import { z } from 'zod';
+import { NotificationType } from '@prisma/client';
 
 interface AuthRequest extends Request {
   user?: any;
@@ -17,7 +18,7 @@ const SubscribeSchema = z.object({
 });
 
 const SettingsSchema = z.object({
-  enabledTypes: z.array(z.string())
+  enabledTypes: z.array(z.enum(['ALL', ...Object.values(NotificationType)] as [string, ...string[]]))
 });
 
 export const subscribe = async (req: AuthRequest, res: Response) => {

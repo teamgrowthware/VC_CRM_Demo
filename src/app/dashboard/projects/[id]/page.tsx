@@ -19,6 +19,7 @@ import { Task } from '@/types/task';
 import dynamic from 'next/dynamic';
 import { formatDate } from '@/lib/utils';
 import { Pencil, UserPlus, Coins, History } from 'lucide-react';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 const TaskDetailSidebar = dynamic(() => import('@/components/tasks/TaskDetailSidebar').then(mod => mod.TaskDetailSidebar));
 const CreateTaskModal = dynamic(() => import('@/components/tasks/CreateTaskModal').then(mod => mod.CreateTaskModal), { ssr: false });
@@ -45,6 +46,7 @@ export default function ProjectDetailDashboard() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'BACKLOG' | 'BOARD' | 'LIST' | 'FINANCIALS' | 'TIMESHEETS'>('BOARD');
+  const [listSearchText, setListSearchText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProjectDetails = async () => {
@@ -252,18 +254,18 @@ export default function ProjectDetailDashboard() {
                      { id: 'TIMESHEETS', label: 'Timesheets', icon: History },
                      ...(user?.role === 'ADMIN' || user?.role === 'PROJECT_MANAGER' || user?.role === 'MANAGER' ? [{ id: 'FINANCIALS', label: 'Financials', icon: Coins }] : [])
                    ].map((tab: any) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                          activeTab === tab.id 
-                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 active:scale-95' 
-                            : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900'
-                        }`}
-                      >
-                        <tab.icon className="w-3.5 h-3.5" />
-                        {tab.label}
-                      </button>
+                       <button
+                         key={tab.id}
+                         onClick={() => setActiveTab(tab.id)}
+                         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                           activeTab === tab.id 
+                             ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 active:scale-95' 
+                             : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900'
+                         }`}
+                       >
+                         <tab.icon className="w-3.5 h-3.5" />
+                         {tab.label}
+                       </button>
                    ))}
                 </div>
               </div>
@@ -278,15 +280,30 @@ export default function ProjectDetailDashboard() {
             
             <div className={`flex-1 w-full ${activeTab === 'LIST' ? 'ag-theme-quartz dark:ag-theme-quartz-dark custom-ag-grid' : 'p-4'}`}>
                   {activeTab === 'LIST' ? (
-                    <AgGridReact
-                      theme={themeQuartz}
-                      rowData={project.tasks || []}
-                      columnDefs={taskColDefs}
-                      defaultColDef={{ sortable: true, filter: true, resizable: true }}
-                      pagination={true}
-                      paginationPageSize={10}
-                      overlayNoRowsTemplate={'<span class="ag-overlay-loading-center">No Tasks Assigned</span>'}
-                    />
+                    <div className="flex flex-col h-full gap-4 p-4">
+                      <div className="relative max-w-sm">
+                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input 
+                          type="text" 
+                          placeholder="Search tasks..." 
+                          value={listSearchText}
+                          onChange={(e) => setListSearchText(e.target.value)}
+                          className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div className="flex-1 w-full ag-theme-quartz dark:ag-theme-quartz-dark custom-ag-grid">
+                        <AgGridReact
+                          theme={themeQuartz}
+                          rowData={project.tasks || []}
+                          columnDefs={taskColDefs}
+                          defaultColDef={{ sortable: true, filter: true, resizable: true }}
+                          quickFilterText={listSearchText}
+                          pagination={true}
+                          paginationPageSize={10}
+                          overlayNoRowsTemplate={'<span class="ag-overlay-loading-center">No Tasks Assigned</span>'}
+                        />
+                      </div>
+                    </div>
                   ) : activeTab === 'BOARD' ? (
                     <KanbanBoard 
                       tasks={project.tasks || []}
@@ -370,9 +387,7 @@ export default function ProjectDetailDashboard() {
             <div className="flex flex-col gap-3 max-h-[250px] overflow-y-auto pr-1">
               {project.manager && (
                 <div className="flex items-center gap-3 p-2 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-lg">
-                  <div className="w-8 h-8 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
-                    {project.manager.name.charAt(0)}
-                  </div>
+                   <UserAvatar name={project.manager.name} avatarUrl={(project.manager as any).avatarUrl} size="sm" className="bg-blue-200 dark:bg-blue-900/30" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate">{project.manager.name}</p>
                     <p className="text-xs text-blue-600 truncate">Project Lead</p>
@@ -381,9 +396,7 @@ export default function ProjectDetailDashboard() {
               )}
               {project.members?.map(member => (
                 <div key={member.id} className="flex items-center gap-3 p-2 hover:bg-zinc-50 dark:hover:bg-[#1a1a1a] rounded-lg transition-colors border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800">
-                  <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 flex items-center justify-center font-bold text-xs shrink-0">
-                    {member.employee?.name.charAt(0) || 'U'}
-                  </div>
+                   <UserAvatar name={member.employee?.name || '?'} avatarUrl={(member.employee as any)?.avatarUrl} size="sm" className="bg-zinc-200 dark:bg-zinc-700" />
                   <div className="flex-1 min-w-0 flex justify-between">
                     <div>
                       <p className="text-sm font-semibold truncate dark:text-zinc-200">{member.employee?.name}</p>
@@ -411,7 +424,7 @@ export default function ProjectDetailDashboard() {
               {project.documents?.map(doc => (
                 <a 
                   key={doc.id} 
-                  href={API_URL ? API_URL.replace('/api', "") + doc.url : `http://localhost:5000${doc.url}`} 
+                  href={API_URL ? API_URL.replace('/api', "") + doc.url : doc.url}
                   target="_blank" 
                   rel="noreferrer"
                   className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-[#1a1a1a] border border-zinc-200 dark:border-zinc-700 hover:border-blue-400 transition-colors rounded-lg group text-sm"

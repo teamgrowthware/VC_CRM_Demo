@@ -1,6 +1,6 @@
-import { Layout, Users, Calendar, MessageCircle, BarChart3, ClipboardList, Folders, Clock, Settings as SettingsIcon, IndianRupee, ExternalLink, Lock, Monitor, BookOpen, FileText } from 'lucide-react';
+import { Layout, Users, Calendar, MessageCircle, BarChart3, ClipboardList, Folders, Clock, Settings as SettingsIcon, IndianRupee, ExternalLink, Lock, Monitor, BookOpen, FileText, Target, Bell, Building2, Megaphone, GanttChart, Activity, ClipboardCheck, PieChart } from 'lucide-react';
 
-export const getNavItemsForRole = (user?: any, portfolioProjects: any[] = []) => {
+export const getNavItemsForRole = (user?: { role?: string; id?: string } | null, portfolioProjects: Array<Record<string, unknown>> = []) => {
   const role = user?.role;
   const userId = user?.id || '';
 
@@ -12,6 +12,7 @@ export const getNavItemsForRole = (user?: any, portfolioProjects: any[] = []) =>
 
   const commonItems = [
     { href: '/dashboard/rulebook', label: 'Rulebook', icon: BookOpen },
+    { href: '/dashboard/notifications', label: 'Notifications', icon: Bell },
   ];
 
   switch (role) {
@@ -19,14 +20,23 @@ export const getNavItemsForRole = (user?: any, portfolioProjects: any[] = []) =>
       return [
         { href: '/dashboard/admin', label: 'Dashboard', icon: Layout },
         { href: '/dashboard/employees', label: 'Employees', icon: Users },
+        { href: '/dashboard/teams', label: 'Teams', icon: Users },
         { href: '/dashboard/attendance', label: 'Attendance', icon: Clock },
         { href: '/dashboard/projects', label: 'Projects', icon: Folders },
-        { href: '/dashboard/gantt', label: 'Gantt Timeline', icon: Calendar },
+        { href: '/dashboard/milestones', label: 'Milestones', icon: Target },
+        { href: '/dashboard/clients', label: 'Clients', icon: Building2 },
         { href: '/dashboard/tasks', label: 'Tasks', icon: Layout },
         { href: '/dashboard/timesheet', label: 'Timesheet', icon: Clock },
+        { href: '/dashboard/admin/timesheet', label: 'Timesheet Approvals', icon: ClipboardCheck },
         { href: '/dashboard/finance', label: 'Finance', icon: IndianRupee },
+        { href: '/dashboard/invoices', label: 'Invoices', icon: FileText },
         { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
+        { href: '/dashboard/admin-analytics', label: 'Admin Analytics', icon: PieChart },
         { href: '/dashboard/leaves', label: 'Leaves', icon: Calendar },
+        { href: '/dashboard/gantt', label: 'Gantt Chart', icon: GanttChart },
+        { href: '/dashboard/performance', label: 'Performance', icon: BarChart3 },
+        { href: '/dashboard/activity', label: 'Activity Log', icon: Activity },
+        { href: '/dashboard/admin/announcements', label: 'Announcements', icon: Megaphone },
         { href: '/dashboard/chat', label: 'Chat', icon: MessageCircle },
         { href: '/dashboard/settings', label: 'Settings', icon: SettingsIcon },
         { href: '/dashboard/devices', label: 'Devices', icon: Monitor },
@@ -34,7 +44,6 @@ export const getNavItemsForRole = (user?: any, portfolioProjects: any[] = []) =>
         { href: '/dashboard/pilot-analytics', label: 'Pilot Analytics', icon: BarChart3 },
         { href: '/dashboard/daily-reports', label: 'My Reports (SOD/EOD)', icon: ClipboardList },
         { href: '/dashboard/team-reports', label: 'Team Reports', icon: ClipboardList },
-        { href: '/dashboard/invoices', label: 'Invoices', icon: IndianRupee },
         { href: '/dashboard/project-portfolio', label: 'Portfolio', icon: Folders, subItems: portfolioSubItems },
         ...commonItems
       ];
@@ -42,13 +51,14 @@ export const getNavItemsForRole = (user?: any, portfolioProjects: any[] = []) =>
       return [
         { href: '/dashboard/hr', label: 'Dashboard', icon: Layout },
         { href: '/dashboard/employees', label: 'Employees', icon: Users },
+        { href: '/dashboard/clients', label: 'Clients', icon: Building2 },
         { href: '/dashboard/attendance', label: 'Attendance', icon: Clock },
         { href: '/dashboard/timesheet', label: 'Timesheet', icon: Clock },
         { href: '/dashboard/finance', label: 'Finance', icon: IndianRupee },
         { href: '/dashboard/leaves', label: 'Leaves', icon: Calendar },
+        { href: '/dashboard/admin/announcements', label: 'Announcements', icon: Megaphone },
         { href: '/dashboard/chat', label: 'Chat', icon: MessageCircle },
         { href: '/dashboard/idle-requests', label: 'Idle Requests', icon: Lock },
-        { href: '/dashboard/pilot-analytics', label: 'Pilot Analytics', icon: BarChart3 },
         { href: '/dashboard/daily-reports', label: 'My Reports (SOD/EOD)', icon: ClipboardList },
         { href: '/dashboard/team-reports', label: 'Team Reports', icon: ClipboardList },
         { href: '/dashboard/project-portfolio', label: 'Portfolio', icon: Folders, subItems: portfolioSubItems },
@@ -58,20 +68,19 @@ export const getNavItemsForRole = (user?: any, portfolioProjects: any[] = []) =>
       return [
         { href: '/dashboard/manager', label: 'Dashboard', icon: Layout },
         { href: '/dashboard/employees', label: 'Employees', icon: Users },
+        { href: '/dashboard/teams', label: 'Teams', icon: Users },
         { href: '/dashboard/attendance', label: 'Attendance', icon: Clock },
         { href: '/dashboard/timesheet', label: 'Timesheet', icon: Clock },
         { href: '/dashboard/finance', label: 'Finance', icon: IndianRupee },
         { href: '/dashboard/leaves', label: 'Leaves', icon: Calendar },
         { href: '/dashboard/projects', label: 'My Projects', icon: Folders },
+        { href: '/dashboard/milestones', label: 'Milestones', icon: Target },
         { href: '/dashboard/tasks', label: 'Team Tasks', icon: Layout },
         { href: '/dashboard/kanban', label: 'Kanban Board', icon: Layout },
-        { href: '/dashboard/gantt', label: 'Gantt Timeline', icon: Calendar },
         { href: '/dashboard/chat', label: 'Chat', icon: MessageCircle },
         { href: '/dashboard/idle-requests', label: 'Idle Requests', icon: Lock },
-        { href: '/dashboard/pilot-analytics', label: 'Pilot Analytics', icon: BarChart3 },
         { href: '/dashboard/daily-reports', label: 'My Reports (SOD/EOD)', icon: ClipboardList },
         { href: '/dashboard/team-reports', label: 'Team Reports', icon: ClipboardList },
-        { href: '/dashboard/invoices', label: 'Invoices', icon: IndianRupee },
         { href: '/dashboard/project-portfolio', label: 'Portfolio', icon: Folders, subItems: portfolioSubItems },
         ...commonItems
       ];
@@ -79,7 +88,8 @@ export const getNavItemsForRole = (user?: any, portfolioProjects: any[] = []) =>
       return [
         { href: '/dashboard/manager', label: 'PM Dashboard', icon: Layout },
         { href: '/dashboard/projects', label: 'My Projects', icon: Folders },
-        { href: '/dashboard/gantt', label: 'Gantt Timeline', icon: Calendar },
+        { href: '/dashboard/teams', label: 'Teams', icon: Users },
+        { href: '/dashboard/milestones', label: 'Milestones', icon: Target },
         { href: '/dashboard/tasks', label: 'Project Tasks', icon: Layout },
         { href: '/dashboard/attendance', label: 'My Attendance', icon: Clock },
         { href: '/dashboard/timesheet', label: 'Timesheet', icon: Clock },
@@ -93,10 +103,10 @@ export const getNavItemsForRole = (user?: any, portfolioProjects: any[] = []) =>
     default:
       return [
         { href: '/dashboard/employee', label: 'Dashboard', icon: Layout },
+        { href: '/dashboard/projects', label: 'My Projects', icon: Folders },
         { href: '/dashboard/sprints', label: 'Sprint Board', icon: Folders },
         { href: '/dashboard/tasks/my-assigned', label: 'My Assigned Tasks', icon: Layout },
         { href: '/dashboard/tasks', label: 'Legacy Tasks', icon: Layout },
-        { href: '/dashboard/gantt', label: 'Gantt Timeline', icon: Calendar },
         { href: '/dashboard/attendance', label: 'Attendance', icon: Clock },
         { href: '/dashboard/timesheet', label: 'Timesheet', icon: Clock },
         { href: '/dashboard/leaves', label: 'Leaves', icon: Calendar },

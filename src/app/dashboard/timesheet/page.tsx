@@ -18,7 +18,6 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { format, startOfWeek, endOfWeek, addWeeks, addMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { toast } from 'sonner';
-import { formatDurationDetailed } from '@/lib/utils';
 import TimerModal from '@/components/timesheet/TimerModal';
 import ManualLogModal from '@/components/timesheet/ManualLogModal';
 import EditWorkLogModal from '@/components/timesheet/EditWorkLogModal';
@@ -195,7 +194,7 @@ export default function TimesheetPage() {
       await deleteTimeEntry(entry.id);
       toast.success('Work log deleted');
       fetchData();
-    } catch (error: any) {
+    } catch (thrown) { const error = thrown as ApiError;
       toast.error(error.response?.data?.message || 'Failed to delete entry');
     }
   };

@@ -27,7 +27,7 @@ export default function TeamReportsPage() {
       setLoading(true);
       const data = await getTeamReports();
       setReports(data || []);
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       setError(e.response?.data?.error || 'Failed to fetch team reports. Make sure you have Manager access.');
     } finally {
       setLoading(false);

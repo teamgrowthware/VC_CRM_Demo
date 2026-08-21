@@ -1,11 +1,22 @@
 import apiClient from './apiClient';
 
 export interface DeductionBreakdownItem {
-  type: 'ABSENT' | 'HALFDAY' | 'PENALTY';
+  type: 'ABSENT' | 'HALFDAY' | 'PENALTY' | 'DEDUCTION' | 'JOINING';
   label: string;
   date: string;
   amount: number;
   id?: string;
+}
+
+export interface LeaveDetailItem {
+  id: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  numberOfDays: number;
+  reason: string;
+  isPaid: boolean;
+  status: string;
 }
 
 export interface GroupEmployeeRow {
@@ -17,8 +28,16 @@ export interface GroupEmployeeRow {
   halfDays: number;
   attendanceDeductions: number;
   totalPenalties: number;
+  overtimePay?: number;
+  totalAddons?: number;
+  totalCustomDeductions?: number;
+  joiningDeduction?: number;
+  grossEarnings?: number;
   netSalary: number;
   deductions: DeductionBreakdownItem[];
+  leaveDetails?: LeaveDetailItem[];
+  paidLeaveDays?: number;
+  unpaidLeaveDays?: number;
 }
 
 export interface PenaltyRow {
@@ -29,6 +48,13 @@ export interface PenaltyRow {
   employee?: { name: string; employeeId: string };
 }
 
+export interface PayrollAddonItem {
+  type: string;
+  amount: number;
+  reason: string;
+  date: string;
+}
+
 export interface PayrollData {
   baseSalary: number;
   totalPenalties: number;
@@ -37,7 +63,19 @@ export interface PayrollData {
   penalties: PenaltyRow[];
   absentDays?: number;
   halfDays?: number;
+  presentDays?: number;
   deductionBreakdown?: DeductionBreakdownItem[];
+  leaveDetails?: LeaveDetailItem[];
+  paidLeaveDays?: number;
+  unpaidLeaveDays?: number;
+  
+  // Additions
+  overtimeHours?: number;
+  overtimePay?: number;
+  totalAddons?: number;
+  addons?: PayrollAddonItem[];
+  grossEarnings?: number;
+
   employees?: GroupEmployeeRow[];
 }
 

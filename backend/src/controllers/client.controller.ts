@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { logAudit } from '../lib/audit';
+import { randomInt } from 'crypto';
 
 interface AuthRequest extends Request {
   user?: any;
@@ -15,13 +16,7 @@ const sanitizeClient = (client: any) => {
 };
 
 const generateClientId = async (): Promise<string> => {
-  let next = (await prisma.client.count()) + 1;
-  let id = '';
-  do {
-    id = `CL${String(next).padStart(3, '0')}`;
-    next++;
-  } while (await prisma.client.findUnique({ where: { clientId: id } }));
-  return id;
+  return `CL${randomInt(100000, 1000000)}`;
 };
 
 const projectProgress = (tasks: { status: string }[]) => {
@@ -93,18 +88,30 @@ export const createClient = async (req: AuthRequest, res: Response): Promise<voi
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const clientId = await generateClientId();
+    let client;
+    let clientId = '';
+    for (let attempt = 0; attempt < 5; attempt++) {
+      clientId = await generateClientId();
+      try {
+        client = await prisma.client.create({
+          data: {
+            clientId,
+            name,
+            email,
+            phone,
+            company,
+            password: hashedPassword,
+          },
+        });
+        break;
+      } catch (error: any) {
+        const target = error?.meta?.target;
+        const isClientIdCollision = Array.isArray(target) ? target.includes('clientId') : target === 'clientId';
+        if (error?.code !== 'P2002' || !isClientIdCollision || attempt === 4) throw error;
+      }
+    }
 
-    const client = await prisma.client.create({
-      data: {
-        clientId,
-        name,
-        email,
-        phone,
-        company,
-        password: hashedPassword,
-      },
-    });
+    if (!client) throw new Error('Failed to generate a unique client ID');
 
     await logAudit({
       userId: req.user?.id,
@@ -142,7 +149,7 @@ export const listClients = async (req: AuthRequest, res: Response): Promise<void
 
 export const getClient = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const client = await prisma.client.findUnique({
       where: { id },
       include: {
@@ -203,7 +210,7 @@ export const updateClient = async (req: AuthRequest, res: Response): Promise<voi
       data.password = await bcrypt.hash(password, 10);
     }
 
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const client = await prisma.client.update({
       where: { id },
       data,
@@ -222,7 +229,7 @@ export const updateClient = async (req: AuthRequest, res: Response): Promise<voi
 
 export const deleteClient = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     await prisma.client.delete({ where: { id } });
     res.status(200).json({ success: true, message: 'Client deleted successfully' });
   } catch (error) {
@@ -233,8 +240,8 @@ export const deleteClient = async (req: AuthRequest, res: Response): Promise<voi
 
 export const assignProject = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
-    const projectId = req.params.projectId as string;
+    const id = String(req.params.id);
+    const projectId = String(req.params.projectId);
 
     const client = await prisma.client.findUnique({ where: { id } });
     if (!client) {
@@ -275,8 +282,8 @@ export const assignProject = async (req: AuthRequest, res: Response): Promise<vo
 
 export const unassignProject = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
-    const projectId = req.params.projectId as string;
+    const id = String(req.params.id);
+    const projectId = String(req.params.projectId);
 
     await prisma.project.update({
       where: { id: projectId },
@@ -375,7 +382,7 @@ export const getMyProjects = async (req: AuthRequest, res: Response): Promise<vo
 
 export const getMyProjectDetail = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const projectId = req.params.projectId as string;
+    const projectId = String(req.params.projectId);
     const project = await prisma.project.findFirst({
       where: { id: projectId, clientId: req.user?.id },
       include: {
@@ -428,7 +435,7 @@ export const getInvoiceDetail = async (req: AuthRequest, res: Response): Promise
   try {
     const invoice = await prisma.invoice.findFirst({
       where: {
-        id: req.params.invoiceId as string,
+        id: String(req.params.invoiceId),
         OR: [
           { clientId: req.user?.id },
           { project: { clientId: req.user?.id } }
@@ -454,7 +461,7 @@ export const approveInvoice = async (req: AuthRequest, res: Response): Promise<v
   try {
     const invoice = await prisma.invoice.findFirst({
       where: {
-        id: req.params.invoiceId as string,
+        id: String(req.params.invoiceId),
         OR: [
           { clientId: req.user?.id },
           { project: { clientId: req.user?.id } }
@@ -483,49 +490,89 @@ export const approveInvoice = async (req: AuthRequest, res: Response): Promise<v
 export const payInvoice = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { paymentMode, transactionId, notes } = req.body;
-    const invoice = await prisma.invoice.findFirst({
-      where: {
-        id: req.params.invoiceId as string,
-        OR: [
-          { clientId: req.user?.id },
-          { project: { clientId: req.user?.id } }
-        ]
+    const updated = await prisma.$transaction(async (tx) => {
+      const invoice = await tx.invoice.findFirst({
+        where: {
+          id: String(req.params.invoiceId),
+          OR: [
+            { clientId: req.user?.id },
+            { project: { clientId: req.user?.id } }
+          ]
+        },
+        include: { project: { select: { managerId: true } } }
+      });
+      if (!invoice) {
+        throw new Error('INVOICE_NOT_FOUND');
       }
-    });
-    if (!invoice) {
-      res.status(404).json({ success: false, message: 'Invoice not found' });
-      return;
-    }
-    if (!['SENT', 'APPROVED', 'OVERDUE'].includes(invoice.status)) {
-      res.status(400).json({ success: false, message: 'This invoice cannot be paid' });
-      return;
-    }
-    const updated = await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        status: 'PAID',
-        paidAt: new Date(),
-        paymentMode: paymentMode || 'BANK_TRANSFER',
-        transactionId: transactionId || null,
-        notes: notes || null
+      if (!['SENT', 'APPROVED', 'OVERDUE'].includes(invoice.status)) {
+        throw new Error('INVOICE_CANNOT_BE_PAID');
       }
-    });
+      if (transactionId) {
+        const duplicate = await tx.projectPayment.findFirst({ where: { transactionId } });
+        if (duplicate) throw new Error('DUPLICATE_TRANSACTION');
+      }
 
-    // Also record as ProjectPayment
-    await prisma.projectPayment.create({
-      data: {
-        projectId: invoice.projectId,
-        amount: invoice.amount,
-        mode: paymentMode || 'BANK_TRANSFER',
-        transactionId: transactionId || null,
-        paymentReference: `Invoice ${invoice.id}`,
-        notes: notes || `Payment for invoice by client`,
-        createdById: req.user?.id || ''
-      }
+      const paidInvoice = await tx.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: 'PAID',
+          paidAt: new Date(),
+          paymentMode: paymentMode || 'BANK_TRANSFER',
+          transactionId: transactionId || null,
+          notes: notes || null
+        }
+      });
+
+      // Client IDs are not Employee IDs. Use the project's employee manager for
+      // the required ledger foreign key while retaining the client as payer.
+      await tx.projectPayment.create({
+        data: {
+          projectId: invoice.projectId,
+          amount: invoice.amount,
+          mode: paymentMode || 'BANK_TRANSFER',
+          transactionId: transactionId || null,
+          paymentReference: `Invoice ${invoice.id}`,
+          notes: notes || 'Payment for invoice by client',
+          createdById: invoice.project.managerId
+        }
+      });
+
+      const totals = await tx.projectPayment.aggregate({
+        where: { projectId: invoice.projectId },
+        _sum: { amount: true }
+      });
+      const receivedAmount = totals._sum.amount || 0;
+      const project = await tx.project.findUnique({
+        where: { id: invoice.projectId },
+        select: { totalValue: true }
+      });
+      await tx.project.update({
+        where: { id: invoice.projectId },
+        data: {
+          receivedAmount,
+          pendingAmount: Math.max(0, (project?.totalValue || 0) - receivedAmount)
+        }
+      });
+
+      return paidInvoice;
     });
 
     res.status(200).json({ success: true, message: 'Payment recorded', data: updated });
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'INVOICE_NOT_FOUND') {
+        res.status(404).json({ success: false, message: 'Invoice not found' });
+        return;
+      }
+      if (error.message === 'INVOICE_CANNOT_BE_PAID') {
+        res.status(400).json({ success: false, message: 'This invoice cannot be paid' });
+        return;
+      }
+      if (error.message === 'DUPLICATE_TRANSACTION') {
+        res.status(400).json({ success: false, message: 'Duplicate transaction ID detected' });
+        return;
+      }
+    }
     console.error('Pay invoice error:', error);
     res.status(500).json({ success: false, message: 'Failed to record payment' });
   }
@@ -558,7 +605,7 @@ export const getMyTickets = async (req: AuthRequest, res: Response): Promise<voi
 export const getTicketDetail = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const ticket = await prisma.supportTicket.findFirst({
-      where: { id: req.params.ticketId as string, clientId: req.user?.id },
+      where: { id: String(req.params.ticketId), clientId: req.user?.id },
       include: {
         project: { select: { id: true, name: true } },
         replies: { orderBy: { createdAt: 'asc' } }
@@ -581,6 +628,16 @@ export const createTicket = async (req: AuthRequest, res: Response): Promise<voi
     if (!subject || !description) {
       res.status(400).json({ success: false, message: 'Subject and description are required' });
       return;
+    }
+    if (projectId) {
+      const project = await prisma.project.findFirst({
+        where: { id: String(projectId), clientId: req.user?.id },
+        select: { id: true }
+      });
+      if (!project) {
+        res.status(404).json({ success: false, message: 'Project not found' });
+        return;
+      }
     }
     const ticket = await prisma.supportTicket.create({
       data: {
@@ -613,7 +670,7 @@ export const addTicketReply = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
     const ticket = await prisma.supportTicket.findFirst({
-      where: { id: req.params.ticketId as string, clientId: req.user?.id }
+      where: { id: String(req.params.ticketId), clientId: req.user?.id }
     });
     if (!ticket) {
       res.status(404).json({ success: false, message: 'Ticket not found' });
@@ -649,7 +706,7 @@ export const addTicketReply = async (req: AuthRequest, res: Response): Promise<v
 export const closeTicket = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const ticket = await prisma.supportTicket.findFirst({
-      where: { id: req.params.ticketId as string, clientId: req.user?.id }
+      where: { id: String(req.params.ticketId), clientId: req.user?.id }
     });
     if (!ticket) {
       res.status(404).json({ success: false, message: 'Ticket not found' });

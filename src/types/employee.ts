@@ -17,6 +17,7 @@ export interface Employee {
   department?: Department;
   designation: string;
   phone?: string;
+  avatarUrl?: string | null;
   joiningDate: string;
   dateOfBirth?: string;
   role: Role;
@@ -41,6 +42,7 @@ export interface UpdateEmployeeData {
   email?: string;
   password?: string;
   phone?: string;
+  avatarUrl?: string | null;
   departmentId?: string;
   designation?: string;
   role?: Role;

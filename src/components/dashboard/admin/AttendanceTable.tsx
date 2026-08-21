@@ -32,7 +32,9 @@ export default function AttendanceTable({ attendances, loading, onUpdate }: Atte
         'HALFDAY': 2,
         'ABSENT': 3,
         'WEEKEND_WORK': 4,
-        'WEEKEND': 5
+        'HOLIDAY_WORK': 5,
+        'WEEKEND': 6,
+        'HOLIDAY': 7
       };
       return (priority[a.status] || 99) - (priority[b.status] || 99);
     });
@@ -47,6 +49,9 @@ export default function AttendanceTable({ attendances, loading, onUpdate }: Atte
       case 'PRESENT': return 'bg-emerald-500 text-white dark:bg-emerald-600';
       case 'ABSENT': return 'bg-rose-500 text-white dark:bg-rose-600';
       case 'HALFDAY': return 'bg-orange-500 text-white dark:bg-orange-600';
+      case 'WEEKEND_WORK': return 'bg-indigo-500 text-white dark:bg-indigo-600';
+      case 'HOLIDAY': return 'bg-blue-500 text-white dark:bg-blue-600';
+      case 'HOLIDAY_WORK': return 'bg-cyan-500 text-white dark:bg-cyan-600';
       default: return 'bg-zinc-500 text-white dark:bg-zinc-600';
     }
   };

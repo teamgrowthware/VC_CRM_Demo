@@ -1,6 +1,21 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { ActivityStatus, SystemEventType } from '@prisma/client';
+import { z } from 'zod';
+
+const MAX_SYNC_BATCH_SIZE = 500;
+const activityStatusSchema = z.enum(Object.values(ActivityStatus) as [ActivityStatus, ...ActivityStatus[]]);
+const eventTypeSchema = z.enum(Object.values(SystemEventType) as [SystemEventType, ...SystemEventType[]]);
+const timestampSchema = z.coerce.date();
+const heartbeatSchema = z.object({
+  status: activityStatusSchema,
+  timerSessionId: z.string().optional(),
+  timestamp: timestampSchema,
+});
+const eventSchema = z.object({
+  type: eventTypeSchema,
+  timestamp: timestampSchema,
+});
 
 interface AuthRequest extends Request {
   user?: {
@@ -17,27 +32,22 @@ export const registerDevice = async (req: AuthRequest, res: Response) => {
 
     const { deviceId, deviceName, os, appVersion } = req.body;
 
-    if (!deviceId) return res.status(400).json({ message: 'Device ID is required' });
+    if (typeof deviceId !== 'string' || !deviceId || deviceId.length > 255) {
+      return res.status(400).json({ message: 'A valid device ID is required' });
+    }
 
-    const device = await prisma.deviceRegistration.upsert({
-      where: { deviceId },
-      update: {
-        userId,
-        deviceName,
-        os,
-        appVersion,
-        isRevoked: false,
-        lastSeenAt: new Date()
-      },
-      create: {
-        userId,
-        deviceId,
-        deviceName,
-        os,
-        appVersion,
-        lastSeenAt: new Date()
-      }
-    });
+    const existingDevice = await prisma.deviceRegistration.findUnique({ where: { deviceId } });
+    if (existingDevice && existingDevice.userId !== userId) {
+      return res.status(403).json({ message: 'Device is registered to another user' });
+    }
+    const device = existingDevice
+      ? await prisma.deviceRegistration.update({
+          where: { deviceId },
+          data: { deviceName, os, appVersion, isRevoked: false, lastSeenAt: new Date() }
+        })
+      : await prisma.deviceRegistration.create({
+          data: { userId, deviceId, deviceName, os, appVersion, lastSeenAt: new Date() }
+        });
 
     res.json(device);
   } catch (error) {
@@ -53,7 +63,11 @@ export const heartbeat = async (req: AuthRequest, res: Response) => {
 
     const { deviceId, status, timerSessionId } = req.body;
 
-    if (!deviceId) return res.status(400).json({ message: 'Device ID is required' });
+    if (typeof deviceId !== 'string' || !deviceId || deviceId.length > 255) {
+      return res.status(400).json({ message: 'A valid device ID is required' });
+    }
+    const parsedStatus = activityStatusSchema.safeParse(status);
+    if (!parsedStatus.success) return res.status(400).json({ message: 'Invalid activity status' });
 
     // Validate device belongs to user and is not revoked
     const device = await prisma.deviceRegistration.findUnique({
@@ -68,7 +82,7 @@ export const heartbeat = async (req: AuthRequest, res: Response) => {
     await prisma.agentHeartbeat.create({
       data: {
         deviceId,
-        status: status as ActivityStatus,
+        status: parsedStatus.data,
         timerSessionId,
         timestamp: new Date()
       }
@@ -110,7 +124,15 @@ export const syncLogs = async (req: AuthRequest, res: Response) => {
 
     const { deviceId, heartbeats, events } = req.body;
 
-    if (!deviceId) return res.status(400).json({ message: 'Device ID is required' });
+    if (typeof deviceId !== 'string' || !deviceId || deviceId.length > 255) {
+      return res.status(400).json({ message: 'A valid device ID is required' });
+    }
+    if ((heartbeats !== undefined && !Array.isArray(heartbeats)) ||
+      (events !== undefined && !Array.isArray(events)) ||
+      (heartbeats?.length || 0) > MAX_SYNC_BATCH_SIZE ||
+      (events?.length || 0) > MAX_SYNC_BATCH_SIZE) {
+      return res.status(400).json({ message: `Each sync batch must contain at most ${MAX_SYNC_BATCH_SIZE} records` });
+    }
 
     const device = await prisma.deviceRegistration.findUnique({
       where: { deviceId }
@@ -122,11 +144,13 @@ export const syncLogs = async (req: AuthRequest, res: Response) => {
 
     // Process batch heartbeats
     if (heartbeats && Array.isArray(heartbeats)) {
-      const heartbeatData = heartbeats.map((hb: any) => ({
+      const parsedHeartbeats = z.array(heartbeatSchema).safeParse(heartbeats);
+      if (!parsedHeartbeats.success) return res.status(400).json({ message: 'Invalid heartbeat data' });
+      const heartbeatData = parsedHeartbeats.data.map((hb) => ({
         deviceId,
-        status: hb.status as ActivityStatus,
+        status: hb.status,
         timerSessionId: hb.timerSessionId,
-        timestamp: new Date(hb.timestamp)
+        timestamp: hb.timestamp
       }));
 
       await prisma.agentHeartbeat.createMany({
@@ -136,10 +160,12 @@ export const syncLogs = async (req: AuthRequest, res: Response) => {
 
     // Process batch events
     if (events && Array.isArray(events)) {
-      const eventData = events.map((ev: any) => ({
+      const parsedEvents = z.array(eventSchema).safeParse(events);
+      if (!parsedEvents.success) return res.status(400).json({ message: 'Invalid system event data' });
+      const eventData = parsedEvents.data.map((ev) => ({
         deviceId,
-        eventType: ev.type as SystemEventType,
-        timestamp: new Date(ev.timestamp)
+        eventType: ev.type,
+        timestamp: ev.timestamp
       }));
 
       await prisma.systemEventLog.createMany({
@@ -159,7 +185,9 @@ export const getAgentSettings = async (req: AuthRequest, res: Response) => {
     const settings = await prisma.systemSettings.findUnique({
       where: { id: 'default' }
     });
-    res.json(settings);
+    if (!settings) return res.json(null);
+    const { financePin: _financePin, ...safeSettings } = settings;
+    res.json(safeSettings);
   } catch (error) {
     res.status(500).json({ message: 'Internal server error' });
   }

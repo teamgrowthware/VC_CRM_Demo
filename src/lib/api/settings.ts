@@ -39,6 +39,7 @@ export interface SelfProfile {
   designation: string | null;
   role: string;
   departmentId: string | null;
+  avatarUrl?: string | null;
 }
 
 export interface ApiMessage {
@@ -67,9 +68,18 @@ export const updateSystemSettings = async (settings: Partial<SystemSettings>): P
 };
 
 export const updateSelfProfile = async (
-  payload: { name?: string; phone?: string | null }
+  payload: { name?: string; phone?: string | null; avatarUrl?: string | null }
 ): Promise<{ success: boolean; message: string; data: SelfProfile }> => {
   const { data } = await api.put('/auth/me', payload);
+  return data;
+};
+
+export const uploadAvatar = async (file: File): Promise<{ success: boolean; data: { avatarUrl: string } }> => {
+  const formData = new FormData();
+  formData.append('avatar', file);
+  const { data } = await api.post('/auth/me/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return data;
 };
 

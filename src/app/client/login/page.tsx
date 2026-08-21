@@ -33,7 +33,7 @@ function ClientLoginForm() {
       });
 
       if (response.data.client) {
-        localStorage.clear();
+        localStorage.removeItem('clientUser');
         localStorage.setItem('clientUser', JSON.stringify(response.data.client));
         if (response.data.csrfToken) {
           setCsrfToken(response.data.csrfToken);
@@ -41,7 +41,7 @@ function ClientLoginForm() {
         toast.success('Login successful!');
         router.push('/client/dashboard');
       }
-    } catch (error: any) {
+    } catch (thrown) { const error = thrown as ApiError;
       console.error("Client login error:", error);
       const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to login';
       toast.error(errorMessage);

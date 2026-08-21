@@ -14,11 +14,11 @@ router.get('/:id', authorizeRoles('ADMIN', 'HR', 'MANAGER', 'PROJECT_MANAGER', '
 
 // Create/Update: Admin, HR
 router.post('/', authorizeRoles('ADMIN', 'HR'), EmployeeController.createEmployee);
-router.put('/:id', authorizeRoles('ADMIN', 'HR'), EmployeeController.updateEmployee);
+router.put('/:id', authorizeRoles('ADMIN', 'HR', 'MANAGER'), EmployeeController.updateEmployee);
 router.patch('/:id/status', authorizeRoles('ADMIN', 'HR'), EmployeeController.toggleEmployeeStatus);
 
-// Delete: Admin only
-router.delete('/:id', authorizeRoles('ADMIN'), EmployeeController.deleteEmployee);
+// Delete: Admin, HR
+router.delete('/:id', authorizeRoles('ADMIN', 'HR'), EmployeeController.deleteEmployee);
 
 // Mount Employee Analytics routing inside /:id bound seamlessly
 router.use('/:id', employeeAnalyticsRoutes);

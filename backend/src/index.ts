@@ -84,3 +84,13 @@ process.on('SIGTERM', () => {
     process.exit(0);
   });
 });
+
+// Capture unhandled errors to Sentry
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+  try { require('./lib/sentry').Sentry.captureException(reason); } catch {}
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  try { require('./lib/sentry').Sentry.captureException(err); } catch {}
+});

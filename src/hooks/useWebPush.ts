@@ -27,7 +27,6 @@ export const useWebPush = () => {
       }
 
       const registration = await navigator.serviceWorker.register('/sw.js');
-      
       let subscription = await registration.pushManager.getSubscription();
 
       if (!subscription) {
@@ -37,19 +36,11 @@ export const useWebPush = () => {
         });
       }
 
-      // Send the subscription to the backend
       const csrfToken = getCsrfToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (csrfToken) {
-        headers['X-CSRF-Token'] = csrfToken;
-      }
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
       await fetch(`${API_URL}/push/subscribe`, {
-        method: 'POST',
-        credentials: 'include',
-        headers,
-        body: JSON.stringify(subscription)
+        method: 'POST', credentials: 'include', headers, body: JSON.stringify(subscription)
       });
       return true;
     } catch (error) {

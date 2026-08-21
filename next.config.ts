@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
-const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL 
-  ? process.env.NEXT_PUBLIC_API_URL.replace('/api', '') 
-  : "https://vortex-crm-nc65p.ondigitalocean.app";
+const API_ORIGIN = "https://vc-crm-demo.onrender.com";
 
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
@@ -18,7 +17,7 @@ const securityHeaders = [
       `img-src 'self' data: blob: ${API_ORIGIN}`,
       "font-src 'self' data:",
       `media-src 'self' blob: data: ${API_ORIGIN}`,
-      `connect-src 'self' ${API_ORIGIN} wss://${API_ORIGIN.replace('https://', '')}`,
+      `connect-src 'self' ${API_ORIGIN} wss://${API_ORIGIN.replace('https://', '')} https://*.ingest.sentry.io https://*.sentry.io`,
       "worker-src 'self' blob:",
       "object-src 'none'",
       "base-uri 'self'",
@@ -30,6 +29,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: process.cwd(),
+  },
   async headers() {
     return [
       {
@@ -40,4 +42,8 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Sentry is only active when SENTRY_DSN / NEXT_PUBLIC_SENTRY_DSN env vars are set.
+  // Source map upload requires SENTRY_AUTH_TOKEN (optional).
+  silent: true,
+});

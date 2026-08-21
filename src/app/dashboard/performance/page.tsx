@@ -7,6 +7,7 @@ import { fetchEmployees } from '@/lib/api/employee';
 import { Employee } from '@/types/employee';
 import { useAuth } from '@/hooks/useAuth';
 import { Star, Award, MessageSquare, Plus, User, Calendar, TrendingUp } from 'lucide-react';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 export default function PerformancePage() {
   const { user } = useAuth();
@@ -116,9 +117,7 @@ export default function PerformancePage() {
               <div key={review.id} className="bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-xl p-6 shadow-sm hover:border-purple-300 dark:hover:border-purple-900/50 transition-colors">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 flex items-center justify-center font-bold text-lg">
-                      {review.employee?.name.charAt(0) || 'U'}
-                    </div>
+                    <UserAvatar name={review.employee?.name || '?'} avatarUrl={(review.employee as any)?.avatarUrl} size="sm" />
                     <div>
                       <h4 className="font-bold text-zinc-900 dark:text-zinc-100">{review.employee?.name}</h4>
                       <p className="text-xs text-zinc-500 uppercase tracking-tighter font-medium">{review.employee?.department?.name || review.period}</p>

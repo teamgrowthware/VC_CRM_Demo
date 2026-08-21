@@ -4,10 +4,11 @@ export interface Holiday {
   id: string;
   name: string;
   date: string;
+  endDate?: string;
   type: 'PUBLIC' | 'COMPANY';
 }
 
-export const addHoliday = async (data: { name: string; date: string; type: string }) => {
+export const addHoliday = async (data: { name: string; date: string; endDate?: string; type: string }) => {
   const response = await api.post('/holidays', data);
   return response.data;
 };

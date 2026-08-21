@@ -2,7 +2,7 @@ const QUEUE_KEY = 'vortex_offline_queue';
 
 export interface QueuedEvent {
   type: 'HEARTBEAT' | 'SYSTEM_EVENT';
-  data: any;
+  data: Record<string, unknown>;
   timestamp: number;
 }
 
@@ -21,7 +21,7 @@ export const clearQueue = () => {
   localStorage.removeItem(QUEUE_KEY);
 };
 
-export const syncQueue = async (apiClient: any, deviceId: string) => {
+export const syncQueue = async (apiClient: { post: (url: string, data: Record<string, unknown>) => Promise<unknown> }, deviceId: string) => {
   const queue = getQueue();
   if (queue.length === 0) return;
 

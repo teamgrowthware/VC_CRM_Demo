@@ -15,7 +15,7 @@ export const createNotification = async (
     // A user with no saved preference receives everything; an empty
     // enabledTypes list means the user has disabled all notifications.
     const preference = await prisma.notificationSetting.findUnique({ where: { userId } });
-    if (preference && !preference.enabledTypes.includes(type)) {
+    if (preference && !preference.enabledTypes.includes('ALL') && !preference.enabledTypes.includes(type)) {
       return null;
     }
 
@@ -43,6 +43,8 @@ export const createNotification = async (
     if (notification.user && notification.user.email) {
       if (type === 'TASK_ASSIGNED') {
         await sendTaskNotification(notification.user.email, 'Check your dashboard!', message);
+      } else if (type === 'PROJECT_ASSIGNED') {
+        await sendGenericEmail(notification.user.email, `Project Assignment: ${message.split('"')[1] || 'New Project'}`, message);
       } else if (['TASK_OVERDUE', 'TASK_DUE_SOON', 'ENTRY_REJECTED', 'PENDING_APPROVAL', 'TIMER_FORGOTTEN'].includes(type)) {
         await sendGenericEmail(notification.user.email, `Attention: ${type.replace('_', ' ')}`, message);
       }

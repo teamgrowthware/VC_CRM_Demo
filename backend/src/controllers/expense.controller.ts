@@ -29,7 +29,7 @@ export const getAllExpenses = async (req: Request, res: Response) => {
     });
     res.json(expenses);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching expenses', error });
+    res.status(500).json({ message: 'Error fetching expenses' });
   }
 };
 
@@ -48,7 +48,7 @@ export const createExpense = async (req: Request, res: Response) => {
     });
     res.status(201).json(expense);
   } catch (error) {
-    res.status(500).json({ message: 'Error creating expense', error });
+    res.status(500).json({ message: 'Error creating expense' });
   }
 };
 
@@ -68,7 +68,7 @@ export const updateExpenseStatus = async (req: Request, res: Response) => {
     });
     res.json(expense);
   } catch (error) {
-    res.status(500).json({ message: 'Error updating expense status', error });
+    res.status(500).json({ message: 'Error updating expense status' });
   }
 };
 
@@ -100,6 +100,6 @@ export const deleteExpense = async (req: Request, res: Response) => {
     await (prisma as any).expense.delete({ where: { id } });
     res.json({ message: 'Expense deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Error deleting expense', error });
+    res.status(500).json({ message: 'Error deleting expense' });
   }
 };

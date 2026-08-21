@@ -13,12 +13,12 @@ export const getPortfolioProjectById = async (id: string) => {
     return response.data;
 };
 
-export const createPortfolioProject = async (data: any) => {
+export const createPortfolioProject = async (data: Record<string, unknown>) => {
     const response = await axios.post(`${API_URL}/portfolio`, data, authConfig());
     return response.data;
 };
 
-export const updatePortfolioProject = async (id: string, data: any) => {
+export const updatePortfolioProject = async (id: string, data: Record<string, unknown>) => {
     const response = await axios.put(`${API_URL}/portfolio/${id}`, data, authConfig());
     return response.data;
 };

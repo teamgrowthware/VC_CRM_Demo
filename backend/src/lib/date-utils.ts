@@ -1,22 +1,24 @@
 export const getShiftBounds = (date = new Date()) => {
-    // Use Asia/Kolkata timezone
-    const options = { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false } as const;
-    const formatter = new Intl.DateTimeFormat('en-US', options);
-    let currentHour = parseInt(formatter.format(date), 10);
-    if (currentHour === 24) currentHour = 0;
-    
-    // Create a new date based on the input date
-    const shiftStart = new Date(date);
-    
-    // We need to adjust based on Kolkata time. 
-    // If it's before 4 AM in Kolkata, it belongs to the previous day's shift.
-    if (currentHour < 4) {
-       shiftStart.setDate(shiftStart.getDate() - 1);
-    }
-    
-    // Reset hours to 4 AM UTC to maintain a consistent 24h block in DB
-    // Or rather, just set it to 4 AM local time if the DB is agnostic, but since Date methods use local, we should stick to UTC normalization if possible.
-    shiftStart.setUTCHours(4, 0, 0, 0);
+    // Determine the IST calendar date + hour of the given instant (timezone-independent)
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: 'numeric', hour12: false
+    }).formatToParts(date);
+
+    const get = (type: string) => parseInt(parts.find(p => p.type === type)?.value || '0', 10);
+    const year = get('year');
+    const month = get('month'); // 1-12
+    const day = get('day');
+    let hour = get('hour');
+    if (hour === 24) hour = 0;
+
+    // If it's before 4 AM IST, it belongs to the previous day's shift.
+    // Date.UTC handles month/year rollover automatically when day is decremented.
+    const shiftDay = hour < 4 ? day - 1 : day;
+
+    // Normalize to 4 AM UTC (the stored "shift day" marker used across the DB)
+    const shiftStart = new Date(Date.UTC(year, month - 1, shiftDay, 4, 0, 0, 0));
     return shiftStart;
 };
 

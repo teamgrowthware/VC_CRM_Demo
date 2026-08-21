@@ -16,6 +16,7 @@ import { fetchEmployees } from '@/lib/api/employee';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 const ADDON_TYPES: Record<string, string> = {
   BONUS: 'Bonus',
@@ -183,9 +184,7 @@ export default function AddonsTab({ month, year }: { month: number, year: number
             <div key={a.id} className="bg-white dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 p-5 rounded-3xl group hover:border-emerald-500 transition-all flex flex-col gap-4">
                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-black text-xs">
-                      {a.employee.name.charAt(0)}
-                    </div>
+                    <UserAvatar name={a.employee.name} avatarUrl={(a.employee as any).avatarUrl} size="md" />
                     <div>
                       <p className="text-sm font-black">{a.employee.name}</p>
                       <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter">{a.employee.employeeId}</p>

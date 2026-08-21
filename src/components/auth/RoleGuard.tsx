@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
@@ -13,12 +13,11 @@ interface RoleGuardProps {
 export default function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
   const { user } = useAuth();
   const router = useRouter();
-  const [isReady, setIsReady] = useState(false);
+  const isReady = !!user && allowedRoles.includes(user.role);
 
   useEffect(() => {
     if (user) {
       if (allowedRoles.includes(user.role)) {
-        setIsReady(true);
       } else {
         // Redirect unauthorized user to their specific dashboard
         const role = user.role.toLowerCase();

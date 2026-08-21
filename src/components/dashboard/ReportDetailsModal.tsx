@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Calendar, User, FileText, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import { DailyReport } from '@/lib/api/report';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface ReportDetailsModalProps {
   isOpen: boolean;
@@ -15,7 +16,7 @@ export const ReportDetailsModal = ({ isOpen, onClose, report }: ReportDetailsMod
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    queueMicrotask(() => setMounted(true));
   }, []);
 
   if (!isOpen || !mounted || !report) return null;
@@ -49,9 +50,7 @@ export const ReportDetailsModal = ({ isOpen, onClose, report }: ReportDetailsMod
           {/* Employee Info (if available) */}
           {report.employee && (
             <div className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800">
-              <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-bold text-lg">
-                {report.employee.name.charAt(0).toUpperCase()}
-              </div>
+              <UserAvatar name={report.employee.name} avatarUrl={(report.employee as { avatarUrl?: string }).avatarUrl} size="md" />
               <div>
                 <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Employee</p>
                 <p className="text-sm font-black text-zinc-900 dark:text-zinc-100">{report.employee.name} ({report.employee.employeeId})</p>

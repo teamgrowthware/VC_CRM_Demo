@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useSocket } from '@/components/providers/SocketProvider';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { getMyChatRooms, getMessagesByRoom, sendMessage, uploadChatFile, ChatRoom, Message } from '@/lib/api/chat';
+import { getMyChatRooms, getMessagesByRoom, sendMessage, uploadChatFile, getChatClients, updateChatPreferences, softDeleteChatGroup, ChatRoom, Message } from '@/lib/api/chat';
 import { API_URL } from '@/lib/api/apiClient';
 import { fetchEmployees } from '@/lib/api/employee';
 import { Employee } from '@/types/employee';
@@ -22,10 +22,17 @@ import {
   Pin,
   BellOff,
   ChevronDown,
-  Settings2
+  Settings2,
+  PinOff,
+  Bell,
+  Archive,
+  Trash2,
+  X,
+  AtSign
 } from 'lucide-react';
 import NewChatModal from '@/components/chat/NewChatModal';
 import GroupInfoModal from '@/components/chat/GroupInfoModal';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 type ChatTab = 'All' | 'Unread' | 'Priority' | 'Direct' | 'Groups' | 'Mentions' | 'Archived';
 const TABS: ChatTab[] = ['All', 'Unread', 'Priority', 'Direct', 'Groups', 'Mentions', 'Archived'];
@@ -57,6 +64,14 @@ export default function ChatPage() {
   const activeRoomIdRef = useRef<string | null>(null);
   const lastMessageIdRef = useRef<string | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const mentionDropdownRef = useRef<HTMLDivElement>(null);
 
   const rowVirtualizer = useVirtualizer({
     count: messages.length,
@@ -145,15 +160,11 @@ export default function ChatPage() {
         const [roomsData, empsData, clientsData] = await Promise.all([
           getMyChatRooms(),
           fetchEmployees(),
-          fetch('/api/client/me').then(res => res.json()).catch(() => ({ data: [] })) // Dummy mock fetching for clients
+          getChatClients()
         ]);
         setRooms(roomsData);
         setEmployees(empsData);
-        // Fallback dummy clients if endpoint fails/empty
-        setClients(clientsData?.data?.length ? clientsData.data : [
-          { id: 'client1', name: 'Acme Corp', clientId: 'CL-001', email: 'contact@acmecorp.com' },
-          { id: 'client2', name: 'Globex Inc', clientId: 'CL-002', email: 'hello@globex.com' }
-        ]);
+        setClients(clientsData);
       } catch (err) {
         console.error(err);
       }
@@ -206,6 +217,20 @@ export default function ChatPage() {
     }
   }, [messages, isLoadingMore, rowVirtualizer]);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
+      if (mentionDropdownRef.current && !mentionDropdownRef.current.contains(e.target as Node) &&
+          !(e.target as HTMLElement).closest('.mention-input-area')) {
+        setShowMentionDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const fetchMoreMessages = useCallback(async () => {
     if (!activeRoom || isLoadingMore || !hasMore || messages.length === 0) return;
     setIsLoadingMore(true);
@@ -241,6 +266,7 @@ export default function ChatPage() {
       if (!activeRoom || !currentUser) return;
 
       socket?.emit('typingStop', { roomId: activeRoom.id, userName: currentUser.name });
+      setShowMentionDropdown(false);
       
       try {
          let fileUrl = undefined;
@@ -255,7 +281,8 @@ export default function ChatPage() {
 
          setInputMessage('');
 
-         const res = await sendMessage(activeRoom.id, content, undefined, fileUrl, fileType);
+         const mentionIds = extractMentionIds(content);
+         const res = await sendMessage(activeRoom.id, content, undefined, fileUrl, fileType, mentionIds.length > 0 ? mentionIds : undefined);
          if (res?.newMessage) {
             setMessages(prev => prev.some(m => m.id === res.newMessage.id) ? prev : [...prev, res.newMessage]);
             setRooms(prev => prev.map(r => r.id === activeRoom.id ? { ...r, messages: [res.newMessage] } : r));
@@ -266,7 +293,8 @@ export default function ChatPage() {
   };
 
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
-     setInputMessage(e.target.value);
+     const value = e.target.value;
+     setInputMessage(value);
      
      if (!activeRoom || !socket || !currentUser) return;
      
@@ -278,9 +306,86 @@ export default function ChatPage() {
      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
      
      typingTimeoutRef.current = setTimeout(() => {
-        setIsTyping(false);
-        socket.emit('typingStop', { roomId: activeRoom.id, userName: currentUser.name });
+       setIsTyping(false);
+       socket.emit('typingStop', { roomId: activeRoom.id, userName: currentUser.name });
      }, 1000);
+
+     const lastAtIndex = value.lastIndexOf('@');
+     if (lastAtIndex !== -1 && (lastAtIndex === 0 || value[lastAtIndex - 1] === ' ')) {
+       const query = value.substring(lastAtIndex + 1);
+       if (!query.includes(' ') || query.length < 20) {
+         setMentionQuery(query);
+         setMentionStartIndex(lastAtIndex);
+         setShowMentionDropdown(true);
+         return;
+       }
+     }
+     setShowMentionDropdown(false);
+  };
+
+  const roomMembers = useMemo(() => {
+    if (!activeRoom) return [];
+    return activeRoom.members
+      .filter(m => m.employeeId && m.employee)
+      .map(m => ({ id: m.employeeId!, name: m.employee!.name }));
+  }, [activeRoom]);
+
+  const filteredMentionMembers = useMemo(() => {
+    return roomMembers.filter(m =>
+      m.name.toLowerCase().includes(mentionQuery.toLowerCase())
+    );
+  }, [roomMembers, mentionQuery]);
+
+  const insertMention = (member: { id: string; name: string }) => {
+    const before = inputMessage.substring(0, mentionStartIndex);
+    const newMessage = `${before}@${member.name} `;
+    setInputMessage(newMessage);
+    setShowMentionDropdown(false);
+    setMentionQuery('');
+    setMentionStartIndex(-1);
+  };
+
+  const extractMentionIds = (content: string): string[] => {
+    const ids: string[] = [];
+    for (const member of roomMembers) {
+      if (content.includes(`@${member.name}`)) {
+        ids.push(member.id);
+      }
+    }
+    return ids;
+  };
+
+  const renderMessageContent = (content: string) => {
+    const parts: React.ReactNode[] = [];
+    const mentionRegex = /@(\w+(?:\s\w+)?)/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mentionRegex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(<span key={`text-${lastIndex}`}>{content.slice(lastIndex, match.index)}</span>);
+      }
+      const mentionName = match[1];
+      const isMentioned = roomMembers.some(m => m.name === mentionName);
+      parts.push(
+        <span
+          key={`mention-${match.index}`}
+          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-bold ${
+            isMentioned
+              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+              : 'text-blue-500'
+          }`}
+        >
+          <AtSign className="w-3 h-3" />
+          {mentionName}
+        </span>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < content.length) {
+      parts.push(<span key={`text-${lastIndex}`}>{content.slice(lastIndex)}</span>);
+    }
+    return parts.length > 0 ? parts : content;
   };
 
   const getRoomName = useCallback((room: ChatRoom) => {
@@ -316,6 +421,13 @@ export default function ChatPage() {
          const readTime = member.lastReadAt ? new Date(member.lastReadAt).getTime() : 0;
          if (lastMsgTime <= readTime && room.messages?.length > 0) return false;
          if (room.messages?.length === 0) return false;
+      }
+
+      if (activeTab === 'Mentions') {
+         const lastMsg = room.messages?.[0];
+         if (!lastMsg || !currentUser?.id) return false;
+         const mentionedInLast = lastMsg.mentions?.some((mention: any) => mention.employeeId === currentUser.id);
+         if (!mentionedInLast) return false;
       }
 
       if (activeFilter !== 'All Chats') {
@@ -444,9 +556,9 @@ export default function ChatPage() {
                 <div className="flex justify-between items-start mb-1">
                   <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100 truncate flex items-center gap-1.5">
                     {room.type === 'PERSONAL' ? (
-                       <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                         {getRoomName(room).substring(0,2).toUpperCase()}
-                       </div>
+                       <UserAvatar name={getRoomName(room)} avatarUrl={room.avatarUrl} size="xs" />
+                    ) : room.avatarUrl ? (
+                       <UserAvatar name={getRoomName(room)} avatarUrl={room.avatarUrl} size="xs" />
                     ) : (
                        <Hash className="w-4 h-4 text-zinc-400 flex-shrink-0" />
                     )}
@@ -486,8 +598,8 @@ export default function ChatPage() {
                <div className="flex items-center gap-3 min-w-0">
                  <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold flex-shrink-0">
                     {activeRoom.avatarUrl ? (
-                      <img src={activeRoom.avatarUrl} alt="avatar" className="w-10 h-10 rounded-lg object-cover" />
-                    ) : (
+                       <img src={activeRoom.avatarUrl.startsWith('http') ? activeRoom.avatarUrl : `${API_URL.replace('/api', '')}${activeRoom.avatarUrl}`} alt="avatar" className="w-10 h-10 rounded-lg object-cover" />
+                     ) : (
                       activeRoom.type === 'PERSONAL' ? <Users className="w-5 h-5"/> : <Hash className="w-5 h-5"/>
                     )}
                  </div>
@@ -506,14 +618,93 @@ export default function ChatPage() {
                       Priority
                     </span>
                  )}
-                 {activeRoom.type !== 'PERSONAL' && (
-                   <button onClick={() => setShowRoomInfo(true)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md" title="Group settings">
-                     <Settings2 className="w-5 h-5 text-zinc-500" />
-                   </button>
-                 )}
-                 <button className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md">
-                   <MoreVertical className="w-5 h-5 text-zinc-500" />
-                 </button>
+                  {activeRoom.type !== 'PERSONAL' && (
+                    <button onClick={() => setShowRoomInfo(true)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md" title="Group settings">
+                      <Settings2 className="w-5 h-5 text-zinc-500" />
+                    </button>
+                  )}
+                  <div className="relative" ref={moreMenuRef}>
+                    <button 
+                      onClick={() => setShowMoreMenu(!showMoreMenu)} 
+                      className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md"
+                    >
+                      <MoreVertical className="w-5 h-5 text-zinc-500" />
+                    </button>
+                    {showMoreMenu && (
+                      <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                        <div className="p-1">
+                          <button
+                            onClick={async () => {
+                              const isPinned = myMemberInfo(activeRoom)?.isPinned;
+                              await updateChatPreferences(activeRoom.id, { isPinned: !isPinned });
+                              await refreshRooms();
+                              setShowMoreMenu(false);
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                          >
+                            {myMemberInfo(activeRoom)?.isPinned ? <PinOff className="w-4 h-4 text-zinc-500" /> : <Pin className="w-4 h-4 text-zinc-500" />}
+                            {myMemberInfo(activeRoom)?.isPinned ? 'Unpin Chat' : 'Pin Chat'}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const isMuted = myMemberInfo(activeRoom)?.isMuted;
+                              await updateChatPreferences(activeRoom.id, { isMuted: !isMuted });
+                              await refreshRooms();
+                              setShowMoreMenu(false);
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                          >
+                            {myMemberInfo(activeRoom)?.isMuted ? <Bell className="w-4 h-4 text-zinc-500" /> : <BellOff className="w-4 h-4 text-zinc-500" />}
+                            {myMemberInfo(activeRoom)?.isMuted ? 'Unmute' : 'Mute'}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const currentPriority = myMemberInfo(activeRoom)?.priority;
+                              const newPriority = currentPriority === 'HIGH' ? 'MEDIUM' : 'HIGH';
+                              await updateChatPreferences(activeRoom.id, { priority: newPriority as any });
+                              await refreshRooms();
+                              setShowMoreMenu(false);
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                          >
+                            <Star className={`w-4 h-4 ${myMemberInfo(activeRoom)?.priority === 'HIGH' ? 'text-amber-500 fill-amber-500' : 'text-zinc-500'}`} />
+                            {myMemberInfo(activeRoom)?.priority === 'HIGH' ? 'Remove Priority' : 'Mark as Priority'}
+                          </button>
+                          <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+                          {activeRoom.type !== 'PERSONAL' && (
+                            <button
+                              onClick={async () => {
+                                await updateChatPreferences(activeRoom.id, { isPinned: false, isMuted: false, priority: 'MEDIUM' });
+                                await refreshRooms();
+                                setShowMoreMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors text-zinc-500"
+                            >
+                              Reset Preferences
+                            </button>
+                          )}
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Leave this chat?')) return;
+                              const member = myMemberInfo(activeRoom);
+                              if (member) {
+                                const { removeGroupMember } = await import('@/lib/api/chat');
+                                await removeGroupMember(activeRoom.id, currentUser!.id);
+                                socket?.emit('leaveRoom', activeRoom.id);
+                                setRooms(prev => prev.filter(r => r.id !== activeRoom.id));
+                                setActiveRoom(null);
+                                setShowMoreMenu(false);
+                              }
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors text-red-600"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Leave Chat
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                </div>
             </div>
 
@@ -552,9 +743,11 @@ export default function ChatPage() {
                      className={`flex flex-col mb-4 ${isMe ? 'items-end' : 'items-start'}`}
                    >
                      <div className={`flex flex-col max-w-[70%] ${isMe ? 'self-end items-end' : 'self-start items-start'}`}>
-                      <span className="text-[11px] text-zinc-400 mb-1 px-1 flex items-center gap-2">
-                         {isMe ? 'You' : (msg.sender?.name || msg.senderClient?.name || 'Unknown')}
-                         {!isMe && msg.senderClient && <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider">CLIENT</span>}
+                      <span className="text-[11px] text-zinc-400 mb-1 px-1 flex items-center gap-1.5">
+                         {isMe ? 'You' : (msg.sender?.name || msg.senderClient?.name || 'Unknown')} 
+                         {!isMe && msg.senderClient && (
+                           <span className="px-1 py-0.5 rounded text-[8px] bg-emerald-100 text-emerald-700 font-bold uppercase leading-none">Client</span>
+                         )}
                          • {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </span>
                       
@@ -580,7 +773,7 @@ export default function ChatPage() {
                                </div>
                             );
                          })()}
-                         {msg.content && <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>}
+                         {msg.content && <p className="text-sm whitespace-pre-wrap leading-relaxed">{renderMessageContent(msg.content)}</p>}
                       </div>
                      </div>
                    </div>
@@ -602,25 +795,59 @@ export default function ChatPage() {
             </div>
 
             <div className="p-4 bg-white dark:bg-[#111] border-t border-zinc-200 dark:border-zinc-800">
+               {showMentionDropdown && filteredMentionMembers.length > 0 && (
+                 <div ref={mentionDropdownRef} className="mb-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                   {filteredMentionMembers.slice(0, 8).map(member => (
+                     <button
+                       key={member.id}
+                       onClick={() => insertMention(member)}
+                       className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-left"
+                     >
+                         <UserAvatar name={member.name} avatarUrl={(member as { avatarUrl?: string }).avatarUrl} size="sm" />
+                       <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{member.name}</span>
+                     </button>
+                   ))}
+                 </div>
+               )}
                <form onSubmit={handleSendMessage} className="flex gap-2 items-end">
-                  <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-blue-500 transition-shadow">
-                     <input 
-                       type="text" 
-                       value={inputMessage}
-                       onChange={handleTyping}
-                       placeholder="Message..." 
-                       className="w-full bg-transparent px-4 py-3 outline-none text-sm placeholder:text-zinc-500"
-                     />
-                     <div className="flex items-center justify-between px-3 pb-2 pt-1 border-t border-zinc-200 dark:border-zinc-800">
-                        <div className="flex gap-1">
-                           <button 
-                             type="button" 
-                             onClick={() => fileInputRef.current?.click()}
-                             className="p-1.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-md transition-colors"
-                             title="Attach file"
-                           >
-                              <Paperclip className="w-4 h-4" />
-                           </button>
+                   <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-blue-500 transition-shadow mention-input-area">
+                      <input 
+                        type="text" 
+                        value={inputMessage}
+                        onChange={handleTyping}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            setShowMentionDropdown(false);
+                          }
+                        }}
+                        placeholder={activeRoom?.type !== 'PERSONAL' ? 'Message... (type @ to mention)' : 'Message...'} 
+                        className="w-full bg-transparent px-4 py-3 outline-none text-sm placeholder:text-zinc-500"
+                      />
+                      <div className="flex items-center justify-between px-3 pb-2 pt-1 border-t border-zinc-200 dark:border-zinc-800">
+                         <div className="flex gap-1">
+                            {activeRoom?.type !== 'PERSONAL' && (
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  setInputMessage(prev => prev + '@');
+                                  setShowMentionDropdown(true);
+                                  setMentionQuery('');
+                                  setMentionStartIndex(inputMessage.length + 1);
+                                }}
+                                className="p-1.5 text-zinc-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                                title="Mention someone"
+                              >
+                                <AtSign className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button 
+                              type="button" 
+                              onClick={() => fileInputRef.current?.click()}
+                              className="p-1.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                              title="Attach file"
+                            >
+                               <Paperclip className="w-4 h-4" />
+                            </button>
                            <input type="file" ref={fileInputRef} className="hidden" />
                         </div>
                      </div>
@@ -669,6 +896,7 @@ export default function ChatPage() {
         room={activeRoom!}
         currentUser={currentUser}
         employees={employees}
+        clients={clients}
         onRefresh={refreshRooms}
         onLeave={handleLeaveRoom}
       />

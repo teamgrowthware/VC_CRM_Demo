@@ -42,6 +42,7 @@ export interface Task {
   title: string;
   description: string | null;
   assignedId: string | null;
+  assignedIds?: string[];
   assignedTo?: {
     id: string;
     name: string;

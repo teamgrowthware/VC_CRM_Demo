@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { calculateEmployeePayroll } from '../services/payroll.service';
 import { logActivity } from '../services/activity.service';
 import { createNotification } from '../services/notification.service';
@@ -522,8 +523,15 @@ const getFinanceSettings = async () => {
   return prisma.systemSettings.upsert({
     where: { id: 'default' },
     update: {},
-    create: { id: 'default' }
+    create: { id: 'default' },
+    select: { financePin: true }
   });
+};
+
+const verifyStoredPin = async (storedPin: string | null, pin: string): Promise<boolean> => {
+  if (!storedPin) return false;
+  if (/^\$2[aby]\$\d{2}\$/.test(storedPin)) return bcrypt.compare(pin, storedPin);
+  return storedPin === pin;
 };
 
 export const verifyFinancePin = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -535,7 +543,15 @@ export const verifyFinancePin = async (req: AuthRequest, res: Response): Promise
     }
 
     const settings = await getFinanceSettings();
-    const valid = settings.financePin === pin;
+    const valid = await verifyStoredPin(settings.financePin, pin);
+
+    // Migrate legacy installations that still contain the old plaintext PIN.
+    if (valid && settings.financePin === pin) {
+      await prisma.systemSettings.update({
+        where: { id: 'default' },
+        data: { financePin: await bcrypt.hash(pin, 12) }
+      });
+    }
 
     res.status(200).json({ success: valid, message: valid ? 'PIN verified' : 'Invalid PIN' });
   } catch (error) {
@@ -555,7 +571,8 @@ export const updateFinancePin = async (req: AuthRequest, res: Response): Promise
 
     if (currentPin && typeof currentPin === 'string') {
       const settings = await getFinanceSettings();
-      if (settings.financePin !== currentPin) {
+      const currentValid = await verifyStoredPin(settings.financePin, currentPin);
+      if (!currentValid) {
         res.status(400).json({ success: false, message: 'Current PIN is incorrect' });
         return;
       }
@@ -563,7 +580,8 @@ export const updateFinancePin = async (req: AuthRequest, res: Response): Promise
 
     const settings = await prisma.systemSettings.update({
       where: { id: 'default' },
-      data: { financePin: pin }
+      data: { financePin: await bcrypt.hash(pin, 12) },
+      select: { id: true, updatedAt: true }
     });
 
     logActivity(req.user.id, 'FINANCE', 'Updated the finance access PIN', 'SystemSettings', 'default');

@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { X, MessageSquare, Paperclip, Clock, Calendar, CheckSquare, Plus, AlignLeft, AlertCircle, Bookmark, Code2 } from 'lucide-react';
 import { Task } from '@/types/task';
 import { updateTask, changeTaskStatus, addTaskComment, createSubTask, toggleSubTask } from '@/lib/api/task';
+import { toast } from 'sonner';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface ModalProps {
   task: Task;
@@ -26,10 +28,13 @@ export const IssueDetailModal = ({ task, onClose, onUpdate }: ModalProps) => {
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [localSubTasks, setLocalSubTasks] = useState(task.subTasks || []);
 
   useEffect(() => {
-    setStatus(task.status);
-    setDescription(task.description || '');
+    queueMicrotask(() => {
+      setStatus(task.status);
+      setDescription(task.description || '');
+    });
   }, [task]);
 
   const handleStatusChange = async (newStatus: string) => {
@@ -66,11 +71,15 @@ export const IssueDetailModal = ({ task, onClose, onUpdate }: ModalProps) => {
   const handleAddSubtask = async () => {
     if (!subtaskTitle.trim()) return;
     try {
-      await createSubTask(task.id, subtaskTitle);
+      const sub = await createSubTask(task.id, subtaskTitle);
+      if (sub) {
+        setLocalSubTasks(prev => [...prev, sub]);
+      }
       setSubtaskTitle('');
       onUpdate();
     } catch (e) {
       console.error("Failed to add subtask", e);
+      toast.error("Failed to add subtask");
     }
   };
 
@@ -172,9 +181,9 @@ export const IssueDetailModal = ({ task, onClose, onUpdate }: ModalProps) => {
                     </button>
                   </div>
                </div>
-               {task.subTasks && task.subTasks.length > 0 ? (
+               {localSubTasks && localSubTasks.length > 0 ? (
                  <div className="space-y-2">
-                   {task.subTasks.map(st => (
+                   {localSubTasks.map(st => (
                      <div key={st.id} className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-[#1a1a1a] rounded-lg">
                        <input type="checkbox" checked={st.isDone} onChange={(e) => handleToggleSubtask(st.id, e.target.checked)} className="w-4 h-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500" />
                        <span className={`text-sm ${st.isDone ? 'line-through text-zinc-400' : 'text-zinc-700 dark:text-zinc-300'}`}>{st.title}</span>
@@ -211,9 +220,7 @@ export const IssueDetailModal = ({ task, onClose, onUpdate }: ModalProps) => {
                <div className="space-y-6">
                  {task.comments && task.comments.map(comment => (
                    <div key={comment.id} className="flex gap-4">
-                     <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-zinc-600 font-bold shrink-0">
-                       {comment.author?.name?.charAt(0) ?? 'U'}
-                     </div>
+                      <UserAvatar name={comment.author?.name || 'User'} avatarUrl={(comment.author as { avatarUrl?: string } | undefined)?.avatarUrl} size="sm" />
                      <div className="flex-1">
                        <div className="flex items-center gap-2 mb-1">
                          <span className="font-semibold text-sm">{comment.author?.name}</span>
@@ -238,9 +245,7 @@ export const IssueDetailModal = ({ task, onClose, onUpdate }: ModalProps) => {
                   <div className="flex-1 flex items-center gap-2 p-1.5 -ml-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 cursor-pointer transition-colors">
                     {task.assignedTo ? (
                       <>
-                        <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">
-                          {task.assignedTo.name.charAt(0)}
-                        </div>
+                          <UserAvatar name={task.assignedTo.name} avatarUrl={(task.assignedTo as { avatarUrl?: string }).avatarUrl} size="sm" />
                         <span className="text-sm font-medium">{task.assignedTo.name}</span>
                       </>
                     ) : (

@@ -21,7 +21,7 @@ export const createSprint = async (req: AuthRequest, res: Response): Promise<voi
 
 export const getProjectSprints = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const projectId = req.params.projectId as string;
+    const projectId = String(req.params.projectId);
     const sprints = await prisma.sprint.findMany({
       where: { projectId },
       include: { tasks: true }
@@ -35,7 +35,7 @@ export const getProjectSprints = async (req: AuthRequest, res: Response): Promis
 
 export const updateSprintStatus = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const { status } = req.body; // PLANNED, ACTIVE, CLOSED
     const sprint = await prisma.sprint.update({
       where: { id },
@@ -51,7 +51,7 @@ export const updateSprintStatus = async (req: AuthRequest, res: Response): Promi
 
 export const getSprint = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const sprint = await prisma.sprint.findUnique({
       where: { id },
       include: {
@@ -81,7 +81,7 @@ export const getSprint = async (req: AuthRequest, res: Response): Promise<void> 
 
 export const getSprintAnalytics = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const tasks = await prisma.task.findMany({
       where: { sprintId: id },
       include: {

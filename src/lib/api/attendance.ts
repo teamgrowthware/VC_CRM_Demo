@@ -1,33 +1,41 @@
 import apiClient from './apiClient';
 import { Attendance, AttendanceStatus } from '../../types/attendance';
 
+export interface PunchInResponse {
+  data: Attendance;
+  isLate: boolean;
+  autoLeave: boolean;
+  lateCount: number;
+}
 
-export const punchIn = async (deviceMetadata?: any): Promise<Attendance> => {
+type DeviceMetadata = Record<string, string | number | boolean | null>;
+
+export const punchIn = async (deviceMetadata?: DeviceMetadata): Promise<PunchInResponse> => {
   const response = await apiClient.post(`/attendance/punch-in`, { deviceMetadata });
-  return response.data.data;
+  return { data: response.data.data, isLate: response.data.isLate || false, autoLeave: response.data.autoLeave || false, lateCount: response.data.lateCount || 0 };
 };
 
-export const punchOut = async (earlyExitReason?: string, deviceMetadata?: any): Promise<Attendance> => {
+export const punchOut = async (earlyExitReason?: string, deviceMetadata?: DeviceMetadata): Promise<Attendance> => {
   const response = await apiClient.post(`/attendance/punch-out`, { earlyExitReason, deviceMetadata });
   return response.data.data;
 };
 
-export const startBreak = async (deviceMetadata?: any): Promise<Attendance> => {
+export const startBreak = async (deviceMetadata?: DeviceMetadata): Promise<Attendance> => {
   const response = await apiClient.post(`/attendance/break-start`, { deviceMetadata });
   return response.data.data;
 };
 
-export const endBreak = async (deviceMetadata?: any): Promise<Attendance> => {
+export const endBreak = async (deviceMetadata?: DeviceMetadata): Promise<Attendance> => {
   const response = await apiClient.post(`/attendance/break-end`, { deviceMetadata });
   return response.data.data;
 };
 
-export const startLunch = async (deviceMetadata?: any): Promise<Attendance> => {
+export const startLunch = async (deviceMetadata?: DeviceMetadata): Promise<Attendance> => {
   const response = await apiClient.post(`/attendance/lunch-start`, { deviceMetadata });
   return response.data.data;
 };
 
-export const endLunch = async (deviceMetadata?: any): Promise<Attendance> => {
+export const endLunch = async (deviceMetadata?: DeviceMetadata): Promise<Attendance> => {
   const response = await apiClient.post(`/attendance/lunch-end`, { deviceMetadata });
   return response.data.data;
 };
@@ -71,7 +79,7 @@ export const deletePenalty = async (id: string): Promise<void> => {
   await apiClient.delete(`/attendance/penalties/${id}`);
 };
 
-export const getCalendarData = async (month: number, year: number): Promise<any[]> => {
+export const getCalendarData = async (month: number, year: number): Promise<Record<string, unknown>[]> => {
   const response = await apiClient.get(`/attendance/calendar?month=${month}&year=${year}`);
   return response.data.data;
 };
@@ -81,7 +89,7 @@ export const updateAttendanceStatus = async (id: string, status: AttendanceStatu
   return response.data.data;
 };
 
-export const getEarlyExitAnalytics = async (month?: number, year?: number): Promise<any[]> => {
+export const getEarlyExitAnalytics = async (month?: number, year?: number): Promise<Record<string, unknown>[]> => {
   const m = month || new Date().getMonth() + 1;
   const y = year || new Date().getFullYear();
   const response = await apiClient.get(`/attendance/analytics/early-exit?month=${m}&year=${y}`);

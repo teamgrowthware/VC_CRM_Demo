@@ -176,7 +176,9 @@ export const generateAllPayslips = async (req: AuthRequest, res: Response): Prom
           type: d.type,
           label: d.label,
           date: d.date,
-          amount: d.amount
+          amount: d.amount,
+          reason: d.type === 'DEDUCTION' ? (result.customDeductions.find(cd => cd.type === d.label)?.reason || d.label) :
+                  d.type === 'PENALTY' ? d.label : undefined
         })),
         netSalary: result.netSalary
       };
@@ -228,5 +230,37 @@ export const deletePayslip = async (req: AuthRequest, res: Response): Promise<vo
   } catch (error) {
     console.error('Delete payslip error:', error);
     res.status(500).json({ success: false, message: 'Failed to delete payslip' });
+  }
+};
+
+export const updatePayslip = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { netSalary, data } = req.body;
+
+    const existing = await prisma.payslip.findUnique({ where: { id: id as string } });
+    if (!existing) {
+      res.status(404).json({ success: false, message: 'Payslip not found' });
+      return;
+    }
+
+    const updateData: any = {};
+    if (netSalary !== undefined) updateData.netSalary = parseFloat(netSalary);
+    if (data !== undefined) updateData.data = data;
+
+    const updated = await prisma.payslip.update({
+      where: { id: id as string },
+      data: updateData,
+      include: {
+        employee: {
+          select: { name: true, employeeId: true, designation: true, department: { select: { name: true } } }
+        }
+      }
+    });
+
+    res.status(200).json({ success: true, data: updated, message: 'Payslip updated' });
+  } catch (error) {
+    console.error('Update payslip error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update payslip' });
   }
 };

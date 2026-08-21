@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Clock, BookOpen, Briefcase, Tag, Loader2, Info } from 'lucide-react';
 import { getAllProjects } from '@/lib/api/project';
-import { getTasksByProject, getAllTasks } from '@/lib/api/task';
+import { getTasksByProject } from '@/lib/api/task';
 import { addManualEntry } from '@/lib/api/timesheet';
 import { Project } from '@/types/project';
 import { Task } from '@/types/task';
@@ -53,7 +53,7 @@ export default function ManualLogModal({ isOpen, onClose, onSuccess }: Props) {
       setFetchingData(true);
       const data = await getAllProjects();
       setProjects(data);
-    } catch (error) {
+    } catch (thrown) { const error = thrown as ApiError;
       toast.error('Failed to load projects');
     } finally {
       setFetchingData(false);
@@ -64,7 +64,7 @@ export default function ManualLogModal({ isOpen, onClose, onSuccess }: Props) {
     try {
       const data = await getTasksByProject(projectId);
       setTasks(data);
-    } catch (error) {
+    } catch (thrown) { const error = thrown as ApiError;
       console.error('Failed to load tasks');
     }
   };
@@ -92,7 +92,7 @@ export default function ManualLogModal({ isOpen, onClose, onSuccess }: Props) {
       toast.success('Timesheet entry added successfully');
       onSuccess();
       onClose();
-    } catch (error: any) {
+    } catch (thrown) { const error = thrown as ApiError;
       const message = error.response?.data?.message || 'Failed to add entry';
       toast.error(message);
     } finally {

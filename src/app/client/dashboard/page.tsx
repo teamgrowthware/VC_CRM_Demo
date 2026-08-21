@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FolderOpen, Loader2, Calendar, ArrowRight, Receipt, LifeBuoy, IndianRupee, Clock } from 'lucide-react';
+import { FolderOpen, Loader2, Calendar, ArrowRight, LifeBuoy, IndianRupee, Clock } from 'lucide-react';
 import { getMyProjects, getMyInvoices, getMyTickets, ClientProject, ClientInvoice, SupportTicket } from '@/lib/api/client';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 const statusColors: Record<string, string> = {
   PLANNING: 'bg-muted text-muted-foreground',
@@ -25,17 +26,19 @@ export default function ClientDashboard() {
   const [invoices, setInvoices] = useState<ClientInvoice[]>([]);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      getMyProjects().catch(() => []),
-      getMyInvoices().catch(() => []),
-      getMyTickets().catch(() => []),
-    ]).then(([p, i, t]) => {
-      setProjects(p);
-      setInvoices(i);
-      setTickets(t);
-    }).finally(() => setLoading(false));
+    Promise.allSettled([getMyProjects(), getMyInvoices(), getMyTickets()])
+      .then(([projectsResult, invoicesResult, ticketsResult]) => {
+        if (projectsResult.status === 'fulfilled') setProjects(projectsResult.value);
+        if (invoicesResult.status === 'fulfilled') setInvoices(invoicesResult.value);
+        if (ticketsResult.status === 'fulfilled') setTickets(ticketsResult.value);
+        if ([projectsResult, invoicesResult, ticketsResult].some(result => result.status === 'rejected')) {
+          setLoadError('Some account data could not be loaded. Please try again.');
+        }
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -56,6 +59,12 @@ export default function ClientDashboard() {
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Welcome Back</h1>
         <p className="text-sm text-muted-foreground mt-1">Here&apos;s an overview of your account</p>
       </div>
+
+      {loadError && (
+        <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          {loadError}
+        </div>
+      )}
 
       {/* Quick Access Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -177,8 +186,8 @@ export default function ClientDashboard() {
                   <div className="flex items-center gap-2 mb-4">
                     <div className="flex -space-x-2">
                       {project.team.slice(0, 4).map((member, i) => (
-                        <div key={member.id} className="w-7 h-7 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[10px] font-bold text-muted-foreground" style={{ zIndex: 4 - i }}>
-                          {member.name.charAt(0).toUpperCase()}
+                        <div key={member.id} className="w-7 h-7" style={{ zIndex: 4 - i }}>
+                          <UserAvatar name={member.name} size="sm" />
                         </div>
                       ))}
                     </div>

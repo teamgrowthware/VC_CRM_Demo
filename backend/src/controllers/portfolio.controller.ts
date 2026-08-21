@@ -33,7 +33,7 @@ export const getPortfolioProjects = async (req: AuthRequest, res: Response): Pro
 
 export const getPortfolioProjectById = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const id = req.params.id as string;
+        const id = String(req.params.id);
         const project = await prisma.portfolioProject.findUnique({
             where: { id },
             include: {
@@ -85,7 +85,7 @@ export const createPortfolioProject = async (req: AuthRequest, res: Response): P
 
 export const updatePortfolioProject = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const id = req.params.id as string;
+        const id = String(req.params.id);
         const validatedData = portfolioProjectSchema.parse(req.body);
 
         const existingProject = await prisma.portfolioProject.findUnique({ where: { id } });
@@ -120,7 +120,7 @@ export const updatePortfolioProject = async (req: AuthRequest, res: Response): P
 
 export const deletePortfolioProject = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const id = req.params.id as string;
+        const id = String(req.params.id);
         
         const existingProject = await prisma.portfolioProject.findUnique({ where: { id } });
         if (!existingProject) {

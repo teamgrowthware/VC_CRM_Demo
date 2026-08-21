@@ -247,15 +247,20 @@ export default function ActivityTracker() {
         }
 
         try {
-          // Check permission first before requesting
-          const state = await (window as any).IdleDetector.requestPermission();
+          // IdleDetector.requestPermission() requires a user gesture (click/tap).
+          // On page load there's no gesture, so check the current permission state first.
+          // If not already granted, skip silently — the fallback interval will handle idle detection.
+          const idleDetector = (window as Window & { IdleDetector?: { requestPermission: () => Promise<string> } }).IdleDetector;
+          const state = await idleDetector?.requestPermission();
           if (state !== 'granted') {
-            console.log('Idle detection permission denied. Using fallback.');
+            console.log('IdleDetector: permission not granted, using fallback.');
             return false;
           }
 
           controller = new AbortController();
-          const detector = new (window as any).IdleDetector();
+          const IdleDetector = (window as Window & { IdleDetector?: new (options?: { threshold?: number }) => { start: (options?: { threshold: number; signal: AbortSignal }) => Promise<void>; addEventListener: (event: string, handler: () => void) => void; userState: string } }).IdleDetector;
+          if (!IdleDetector) return;
+          const detector = new IdleDetector();
 
           detector.addEventListener('change', () => {
             const userState = detector.userState;
@@ -296,7 +301,7 @@ export default function ActivityTracker() {
           }
           return true;
         } catch (err) {
-          console.error('IdleDetector initialization failed:', err);
+          console.log('IdleDetector: requires user gesture, using fallback idle detection.');
           return false;
         }
       };

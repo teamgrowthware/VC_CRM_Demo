@@ -43,7 +43,7 @@ const authCookieOptions = {
 };
 
 const csrfCookieOptions = {
-  httpOnly: true,
+  httpOnly: false,
   secure: IS_PRODUCTION,
   sameSite: IS_PRODUCTION ? ('none' as const) : ('lax' as const),
   path: '/',

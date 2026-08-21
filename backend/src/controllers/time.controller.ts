@@ -14,7 +14,7 @@ interface AuthRequest extends Request {
 
 export const getTaskTimeEntries = async (req: AuthRequest, res: Response) => {
   try {
-    const taskId = req.params.taskId as string;
+    const taskId = String(req.params.taskId);
     const employeeId = req.user?.id;
     const role = req.user?.role;
 
@@ -58,7 +58,7 @@ export const getTaskTimeEntries = async (req: AuthRequest, res: Response) => {
 
 export const getUserTimeEntries = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.params.userId as string;
+    const userId = String(req.params.userId);
     const employeeId = req.user?.id;
     const role = req.user?.role;
 

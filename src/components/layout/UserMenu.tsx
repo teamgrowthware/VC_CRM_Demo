@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { LogOut, Settings, User, Shield, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProfileModal } from './ProfileModal';
-import apiClient from '@/lib/api/apiClient';
+import { logout } from '@/lib/api/apiClient';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 export default function UserMenu() {
   const [isOpen, setIsOpen] = useState(false);
@@ -16,15 +17,12 @@ export default function UserMenu() {
   // Get user data from localStorage
   const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
   const user = userStr ? JSON.parse(userStr) : null;
-  const initial = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
-
   const handleLogout = async () => {
     try {
-      await apiClient.post('/auth/logout');
+      await logout();
     } catch (err) {
       console.error('Logout error:', err);
     }
-    localStorage.removeItem('user');
     toast.success('Logged out successfully');
     router.push('/login');
   };
@@ -46,9 +44,7 @@ export default function UserMenu() {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all outline-none"
       >
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center font-black text-xs shadow-md border-2 border-white dark:border-zinc-800">
-          {initial}
-        </div>
+        <UserAvatar name={user.name} avatarUrl={(user as { avatarUrl?: string }).avatarUrl} size="sm" />
         <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 

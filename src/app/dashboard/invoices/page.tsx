@@ -1,27 +1,35 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { ColDef, ICellRendererParams } from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
-import { Plus, Download, RefreshCcw } from 'lucide-react';
-import apiClient from '@/lib/api/apiClient';
-import CreateInvoiceModal from '@/components/finance/CreateInvoiceModal';
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
+
+ModuleRegistry.registerModules([AllCommunityModule]);
+import { themeQuartz, type ColDef, type ICellRendererParams } from 'ag-grid-community';
+import { Invoice, getAllInvoices, updateInvoiceStatus, deleteInvoice } from '@/lib/api/invoice';
+import { Search, Download, Trash2, Plus, FileText, IndianRupee, BellRing, CheckCircle2, Send } from 'lucide-react';
+import { utils, writeFile } from 'xlsx';
+import RoleGuard from '@/components/auth/RoleGuard';
+import { formatDate } from '@/lib/utils';
+import dynamic from 'next/dynamic';
+import { toast } from 'sonner';
+
+const CreateInvoiceModal = dynamic(() => import('@/components/dashboard/CreateInvoiceModal'), { ssr: false });
 
 export default function InvoicesPage() {
-  const [rowData, setRowData] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [searchText, setSearchText] = useState('');
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const fetchInvoices = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.get('/invoices');
-      // Assume API returns { data: [...] } or just [...]
-      setRowData(res.data?.data || res.data || []);
-    } catch (err) {
-      console.error('Failed to fetch invoices', err);
+      const data = await getAllInvoices();
+      setInvoices(data);
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to load invoices');
     } finally {
       setLoading(false);
     }
@@ -31,114 +39,228 @@ export default function InvoicesPage() {
     fetchInvoices();
   }, []);
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this invoice?')) return;
     try {
-      await apiClient.patch(`/invoices/${id}/status`, { status: newStatus });
+      await deleteInvoice(id);
+      toast.success('Invoice deleted');
       fetchInvoices();
-    } catch (err) {
-      console.error('Failed to update status', err);
-      alert('Failed to update status');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to delete invoice');
     }
   };
 
-  const statusRenderer = (params: ICellRendererParams) => {
-    const status = params.value;
-    const colors: Record<string, string> = {
-      'DRAFT': 'bg-gray-100 text-gray-800 border-gray-200',
-      'SENT': 'bg-blue-100 text-blue-800 border-blue-200',
-      'PAID': 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      'OVERDUE': 'bg-red-100 text-red-800 border-red-200'
-    };
-    return (
-      <div className="flex items-center h-full">
-        <select 
-          className={`px-2 py-1 text-xs font-bold rounded-full border outline-none cursor-pointer ${colors[status] || colors['DRAFT']}`}
-          value={status}
-          onChange={(e) => handleStatusChange(params.data.id, e.target.value)}
-        >
-          <option value="DRAFT">DRAFT</option>
-          <option value="SENT">SENT</option>
-          <option value="PAID">PAID</option>
-          <option value="OVERDUE">OVERDUE</option>
-        </select>
-      </div>
-    );
+  const handleUpdateStatus = async (id: string, status: string) => {
+    try {
+      await updateInvoiceStatus(id, { status });
+      toast.success(`Invoice marked as ${status}`);
+      fetchInvoices();
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to update status');
+    }
   };
 
-  const currencyFormatter = (params: any) => {
-    return '₹' + (params.value || 0).toLocaleString();
+  const handleExport = () => {
+    const exportData = invoices.map(inv => ({
+      'Invoice ID': inv.id.split('-')[0].toUpperCase(),
+      'Client': inv.clientName,
+      'Project': inv.project?.name || 'N/A',
+      'Amount': inv.amount,
+      'Status': inv.status,
+      'Due Date': formatDate(inv.dueDate),
+      'Created': formatDate(inv.createdAt)
+    }));
+
+    const worksheet = utils.json_to_sheet(exportData);
+    const workbook = utils.book_new();
+    utils.book_append_sheet(workbook, worksheet, "Invoices");
+    writeFile(workbook, "Invoices_Report.xlsx");
   };
 
-  const [columnDefs] = useState<ColDef[]>([
-    { field: 'id', headerName: 'Invoice ID', width: 120, filter: true },
-    { field: 'clientName', headerName: 'Client', flex: 1, filter: true },
-    { field: 'projectId', headerName: 'Project ID', width: 150, filter: true },
-    { field: 'subtotal', headerName: 'Subtotal', width: 120, valueFormatter: currencyFormatter },
-    { field: 'gstAmount', headerName: 'Tax (GST)', width: 120, valueFormatter: currencyFormatter },
-    { field: 'totalAmount', headerName: 'Total', width: 150, valueFormatter: currencyFormatter, cellStyle: { fontWeight: 'bold' } },
-    { field: 'status', headerName: 'Status', width: 150, cellRenderer: statusRenderer, filter: true },
-    { field: 'dueDate', headerName: 'Due Date', width: 150, filter: true },
+  const [colDefs] = useState<ColDef<Invoice>[]>([
+    { 
+      field: 'id', 
+      headerName: 'INV #', 
+      width: 120, 
+      pinned: 'left',
+      valueFormatter: (p) => p.value ? p.value.split('-')[0].toUpperCase() : ''
+    },
+    { field: 'clientName', headerName: 'Client', flex: 1, minWidth: 150 },
+    { field: 'project.name', headerName: 'Project', filter: 'agTextColumnFilter' },
+    { 
+      field: 'amount', 
+      headerName: 'Amount',
+      width: 130,
+      cellRenderer: (p: ICellRendererParams) => (
+        <span className="font-bold flex items-center h-full">
+          <IndianRupee className="w-3 h-3 mr-0.5" />
+          {p.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        </span>
+      )
+    },
+    { 
+      field: 'status', 
+      headerName: 'Status',
+      width: 130,
+      filter: true,
+      cellRenderer: (p: any) => {
+        const val = p.value;
+        return (
+          <span className={`px-2.5 py-1 text-[10px] uppercase font-black tracking-wider rounded-full flex items-center w-fit mt-2 ${
+            val === 'PAID' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+            val === 'SENT' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+            val === 'APPROVED' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' :
+            val === 'OVERDUE' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
+            'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+          }`}>
+            {val}
+          </span>
+        );
+      }
+    },
+    { field: 'dueDate', headerName: 'Due Date', valueFormatter: p => formatDate(p.value), width: 140 },
+    { 
+      headerName: 'Actions',
+      width: 240,
+      sortable: false,
+      filter: false,
+      cellRenderer: (p: any) => (
+        <div className="flex gap-2 items-center h-full">
+          {p.data.status === 'DRAFT' && (
+            <button 
+              onClick={() => handleUpdateStatus(p.data.id, 'SENT')}
+              className="p-1.5 hover:bg-blue-100 text-blue-600 rounded transition-colors flex items-center gap-1 text-xs font-bold" 
+              title="Send to Client"
+            >
+              <Send className="w-4 h-4" /> Send
+            </button>
+          )}
+          {p.data.status !== 'PAID' && (
+            <button 
+              onClick={() => handleUpdateStatus(p.data.id, 'PAID')}
+              className="p-1.5 hover:bg-emerald-100 text-emerald-600 rounded transition-colors flex items-center gap-1 text-xs font-bold" 
+              title="Mark as Paid"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Paid
+            </button>
+          )}
+          {p.data.status === 'SENT' && (
+             <button 
+             onClick={() => handleUpdateStatus(p.data.id, 'OVERDUE')}
+             className="p-1.5 hover:bg-amber-100 text-amber-600 rounded transition-colors flex items-center gap-1 text-xs font-bold" 
+             title="Mark Overdue"
+           >
+             <BellRing className="w-4 h-4" />
+           </button>
+          )}
+          <button onClick={() => handleDelete(p.data.id)} className="p-1.5 hover:bg-red-100 text-red-500 rounded transition-colors ml-auto" title="Delete Invoice">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      )
+    }
   ]);
 
-  const defaultColDef = useMemo(() => ({
+  const defaultColDef = useMemo<ColDef>(() => ({
     sortable: true,
+    filter: true,
     resizable: true,
   }), []);
 
-  return (
-    <div className="flex flex-col gap-6 h-full pb-12 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Invoices</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-1">Manage client billing and track payments.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={fetchInvoices}
-            className="p-2.5 bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
-          >
-            <RefreshCcw className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
-          </button>
-          <button className="px-4 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-xl font-bold hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors flex items-center gap-2">
-            <Download className="w-5 h-5" /> Export
-          </button>
-          <button 
-            onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all active:scale-95 font-bold"
-          >
-            <Plus className="w-5 h-5" /> Create Invoice
-          </button>
-        </div>
-      </div>
+  const onFilterTextBoxChanged = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchText(e.target.value);
+  }, []);
 
-      <div className="flex-1 bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-sm min-h-[500px]">
-        {loading ? (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+  // Calculate metrics
+  const totalBilled = invoices.reduce((acc, curr) => curr.status !== 'CANCELLED' ? acc + curr.amount : acc, 0);
+  const totalPaid = invoices.reduce((acc, curr) => curr.status === 'PAID' ? acc + curr.amount : acc, 0);
+  const totalPending = invoices.reduce((acc, curr) => ['DRAFT', 'SENT', 'OVERDUE'].includes(curr.status) ? acc + curr.amount : acc, 0);
+
+  return (
+    <RoleGuard allowedRoles={['ADMIN']}>
+      <div className="flex flex-col min-h-full gap-6 pb-12 animate-in fade-in duration-500">
+        <div className="flex justify-between items-end">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Invoicing & Billing</h1>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1">Manage client invoices and track payments</p>
           </div>
-        ) : (
-          <div className="ag-theme-alpine w-full h-full">
+          <div className="flex gap-3">
+             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2.5 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#111] rounded-xl text-sm font-bold hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors shadow-sm">
+                <Download className="w-4 h-4" /> Export
+             </button>
+             <button 
+                onClick={() => setIsCreateModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+             >
+                <Plus className="w-4 h-4" /> Create Invoice
+             </button>
+          </div>
+        </div>
+
+        {/* Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+           <div className="bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 flex flex-col gap-2">
+              <span className="text-sm font-bold text-zinc-500 uppercase tracking-wider">Total Billed</span>
+              <span className="text-3xl font-black flex items-center">
+                 <IndianRupee className="w-6 h-6 mr-1" />
+                 {totalBilled.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </span>
+           </div>
+           <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 rounded-2xl p-6 flex flex-col gap-2">
+              <span className="text-sm font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider">Amount Collected</span>
+              <span className="text-3xl font-black text-emerald-700 dark:text-emerald-400 flex items-center">
+                 <IndianRupee className="w-6 h-6 mr-1" />
+                 {totalPaid.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </span>
+           </div>
+           <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-2xl p-6 flex flex-col gap-2">
+              <span className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider">Pending / Overdue</span>
+              <span className="text-3xl font-black text-amber-700 dark:text-amber-400 flex items-center">
+                 <IndianRupee className="w-6 h-6 mr-1" />
+                 {totalPending.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </span>
+           </div>
+        </div>
+
+        <div className="flex flex-col flex-1 bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-[#111]">
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input 
+                type="text" 
+                placeholder="Search invoices by client, project..." 
+                value={searchText}
+                onChange={onFilterTextBoxChanged}
+                className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div className="w-full ag-theme-quartz dark:ag-theme-quartz-dark custom-ag-grid" style={{ height: '600px' }}>
             <AgGridReact
-              rowData={rowData}
-              columnDefs={columnDefs}
+              theme={themeQuartz}
+              rowData={invoices}
+              columnDefs={colDefs}
               defaultColDef={defaultColDef}
+              quickFilterText={searchText}
+              rowSelection="multiple"
               pagination={true}
-              paginationPageSize={10}
-              domLayout="normal"
+              paginationPageSize={15}
+              paginationPageSizeSelector={[15, 30, 50, 100]}
+              overlayLoadingTemplate={'<span class="ag-overlay-loading-center">Loading Invoices...</span>'}
+              overlayNoRowsTemplate={'<span class="ag-overlay-loading-center">No Invoices Found</span>'}
             />
           </div>
-        )}
-      </div>
+        </div>
 
-      {showCreateModal && (
         <CreateInvoiceModal 
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={() => {
-            setShowCreateModal(false);
-            fetchInvoices();
-          }}
+          isOpen={isCreateModalOpen} 
+          onClose={() => setIsCreateModalOpen(false)} 
+          onSuccess={fetchInvoices} 
         />
-      )}
-    </div>
+      </div>
+    </RoleGuard>
   );
 }

@@ -93,9 +93,8 @@ export default function OverviewDashboard() {
          const payRes = await api.get('/payslips/recent').catch(() => ({ data: { payslips: [] } }));
          setPayslips(payRes.data?.payslips || []);
        }
-       
-       // Sprints mockup
-       const projs = projData || [];
+        
+        const projs = projData || [];
        let allSprints: any[] = [];
        for (const p of projs) {
           const sprintRes = await api.get(`/sprints/project/${p.id}`).catch(() => ({ data: { data: [] } }));
@@ -326,15 +325,14 @@ export default function OverviewDashboard() {
         )}
 
         {/* Projects Widget */}
-        {(user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'PROJECT_MANAGER') && (
         <Link href="/dashboard/projects" className="bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 flex flex-col justify-between shadow-sm hover:ring-2 hover:ring-purple-500/50 transition-all group">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg group-hover:scale-110 transition-transform">
               <FolderDot className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-medium text-sm">Projects Overview</h3>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Global enterprise status</p>
+              <h3 className="font-medium text-sm">{user?.role === 'EMPLOYEE' ? 'My Projects' : 'Projects Overview'}</h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{user?.role === 'EMPLOYEE' ? 'Projects you are assigned to' : 'Global enterprise status'}</p>
             </div>
           </div>
           
@@ -367,7 +365,6 @@ export default function OverviewDashboard() {
             View All Projects <ArrowRight className="w-4 h-4" />
           </div>
         </Link>
-        )}
 
         {/* Productivity Widget */}
         <div className="bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-xl p-5 flex flex-col justify-between shadow-sm lg:col-span-1 xl:col-span-1">

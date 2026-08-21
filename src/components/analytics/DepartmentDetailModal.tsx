@@ -5,6 +5,7 @@ import { X, Users, Target, CheckCircle, Clock, TrendingUp } from 'lucide-react';
 import { TeamProductivity } from '@/lib/api/analytics';
 import { fetchEmployees } from '@/lib/api/employee';
 import { Employee } from '@/types/employee';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface DepartmentDetailModalProps {
   isOpen: boolean;
@@ -86,9 +87,7 @@ export const DepartmentDetailModal = ({ isOpen, onClose, department }: Departmen
                     <div className="col-span-full py-12 flex justify-center"><Clock className="w-8 h-8 animate-spin text-zinc-300" /></div>
                  ) : employees.map((emp) => (
                     <div key={emp.id} className="flex items-center gap-3 p-3 bg-white dark:bg-zinc-800/40 border border-zinc-100 dark:border-zinc-800 rounded-2xl hover:border-indigo-500/50 transition-colors">
-                       <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-sm">
-                          {emp.name.charAt(0)}
-                       </div>
+                       <UserAvatar name={emp.name} avatarUrl={(emp as { avatarUrl?: string }).avatarUrl} size="sm" />
                        <div className="min-w-0">
                           <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{emp.name}</p>
                           <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest truncate">{emp.designation}</p>

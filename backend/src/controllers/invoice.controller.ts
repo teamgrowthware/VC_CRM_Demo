@@ -32,7 +32,7 @@ export const createInvoice = async (req: Request, res: Response) => {
     
     res.status(201).json(invoice);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to create invoice' });
   }
 };
 
@@ -48,13 +48,13 @@ export const getInvoices = async (req: Request, res: Response) => {
     });
     res.status(200).json(invoices);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to fetch invoices' });
   }
 };
 
 export const getInvoiceById = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const invoice = await prisma.invoice.findUnique({
       where: { id },
       include: {
@@ -66,13 +66,13 @@ export const getInvoiceById = async (req: Request, res: Response) => {
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
     res.status(200).json(invoice);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to fetch invoice' });
   }
 };
 
 export const updateInvoiceStatus = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const { status, paymentMode, transactionId } = req.body;
     
     const invoice = await prisma.invoice.update({
@@ -93,16 +93,21 @@ export const updateInvoiceStatus = async (req: Request, res: Response) => {
     
     res.status(200).json(invoice);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to update invoice status' });
   }
 };
 
 export const deleteInvoice = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
+    const invoice = await prisma.invoice.findUnique({ where: { id }, select: { status: true } });
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    if (invoice.status !== 'DRAFT') {
+      return res.status(400).json({ error: 'Only draft invoices can be deleted' });
+    }
     await prisma.invoice.delete({ where: { id } });
     res.status(200).json({ message: 'Invoice deleted successfully' });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to delete invoice' });
   }
 };

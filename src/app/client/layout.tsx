@@ -7,6 +7,7 @@ import { LayoutDashboard, FolderOpen, MessageCircle, LogOut, Menu, X, Loader2, R
 import { Toaster } from 'sonner';
 import SocketProvider from '@/components/providers/SocketProvider';
 import ThemeToggle from '@/components/layout/ThemeToggle';
+import { logout } from '@/lib/api/apiClient';
 
 const navItems = [
   { href: '/client/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -19,13 +20,13 @@ const navItems = [
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [clientUser, setClientUser] = useState<any>(null);
+  const [clientUser, setClientUser] = useState<{ id: string; name: string; email: string } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (pathname === '/client/login') {
-      setLoading(false);
+      queueMicrotask(() => setLoading(false));
       return;
     }
     const stored = localStorage.getItem('clientUser');
@@ -33,12 +34,18 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       router.push('/client/login');
       return;
     }
-    setClientUser(JSON.parse(stored));
-    setLoading(false);
+    queueMicrotask(() => {
+      setClientUser(JSON.parse(stored));
+      setLoading(false);
+    });
   }, [router, pathname]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('clientUser');
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
     router.push('/client/login');
   };
 

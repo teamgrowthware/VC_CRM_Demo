@@ -15,7 +15,7 @@ export const getEmployeeReviews = async (req: Request, res: Response) => {
     });
     res.json(reviews);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching reviews', error });
+    res.status(500).json({ message: 'Error fetching reviews' });
   }
 };
 
@@ -40,7 +40,7 @@ export const createReview = async (req: Request, res: Response) => {
     });
     res.status(201).json(review);
   } catch (error) {
-    res.status(500).json({ message: 'Error creating review', error });
+    res.status(500).json({ message: 'Error creating review' });
   }
 };
 
@@ -55,6 +55,6 @@ export const getAllReviews = async (req: Request, res: Response) => {
     });
     res.json(reviews);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching all reviews', error });
+    res.status(500).json({ message: 'Error fetching all reviews' });
   }
 };

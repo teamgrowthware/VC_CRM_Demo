@@ -76,3 +76,16 @@ export const markAllAsRead = async (req: AuthRequest, res: Response): Promise<vo
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+
+export const clearAllNotifications = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await prisma.notification.deleteMany({
+      where: { userId: req.user.id }
+    });
+
+    res.status(200).json({ message: 'All notifications cleared' });
+  } catch (error) {
+    console.error('Clear all notifications error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};

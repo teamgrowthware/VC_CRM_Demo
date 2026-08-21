@@ -10,9 +10,9 @@ import { authenticateToken, authorizeRoles } from '../middleware/auth.middleware
 
 const router = express.Router();
 
-// All invoice routes require authentication and manager/admin/hr privileges
+// Invoice routes require authentication and admin privileges
 router.use(authenticateToken);
-router.use(authorizeRoles('ADMIN', 'MANAGER', 'HR'));
+router.use(authorizeRoles('ADMIN'));
 
 router.get('/', getInvoices);
 router.post('/', createInvoice);

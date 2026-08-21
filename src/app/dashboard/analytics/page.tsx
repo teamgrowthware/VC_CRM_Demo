@@ -11,6 +11,7 @@ import { DepartmentAnalytics } from '@/components/analytics/DepartmentAnalytics'
 import { ForecastingView } from '@/components/analytics/ForecastingView';
 import { EfficiencyComparison } from '@/components/analytics/EfficiencyComparison';
 import { getAnalyticsProjectStats, ProjectStats } from '@/lib/api/analytics';
+import RoleGuard from '@/components/auth/RoleGuard';
 
 export default function ExecutiveAnalyticsPage() {
   const [productivity, setProductivity] = useState<TeamProductivity[]>([]);
@@ -70,6 +71,7 @@ export default function ExecutiveAnalyticsPage() {
   }
 
   return (
+    <RoleGuard allowedRoles={['ADMIN']}>
     <div className="flex flex-col gap-8 w-full pb-20 overflow-x-hidden">
       {/* Header & Vision Tier */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-2">
@@ -170,5 +172,6 @@ export default function ExecutiveAnalyticsPage() {
         </div>
       )}
     </div>
+    </RoleGuard>
   );
 }

@@ -9,8 +9,13 @@ interface AuthRequest extends Request {
 
 export const applyLeave = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const employeeId = req.user.id;
-    const { leaveType, startDate, endDate, numberOfDays, reason } = req.body;
+    let employeeId = req.user.id;
+    const { leaveType, startDate, endDate, numberOfDays, reason, employeeId: targetEmployeeId } = req.body;
+
+    // Allow Admins and HR to apply leave on behalf of other employees
+    if (targetEmployeeId && (req.user.role === 'ADMIN' || req.user.role === 'HR')) {
+      employeeId = targetEmployeeId;
+    }
 
     const leave = await prisma.leave.create({
       data: {
@@ -100,7 +105,7 @@ export const getAllLeaves = async (req: AuthRequest, res: Response): Promise<voi
 
 export const markLeaveAsPaid = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const { isPaid } = req.body;
 
     if (typeof isPaid !== 'boolean') {
@@ -150,7 +155,7 @@ export const markLeaveAsPaid = async (req: AuthRequest, res: Response): Promise<
 
 export const updateLeaveStatus = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const { status } = req.body; // APPROVED, REJECTED
 
     if (!['APPROVED', 'REJECTED'].includes(status)) {

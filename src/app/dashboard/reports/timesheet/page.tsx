@@ -18,6 +18,7 @@ import {
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, addMonths } from 'date-fns';
 import { toast } from 'sonner';
 import { utils, writeFile } from 'xlsx';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 const PROJECT_COLORS = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-indigo-500', 'bg-lime-500'];
 
@@ -413,9 +414,7 @@ export default function TimesheetReportsPage() {
                   <div key={emp.name} className="px-5 py-4">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-xs shrink-0">
-                          {emp.name.charAt(0)}
-                        </div>
+                        <UserAvatar name={emp.name} avatarUrl={(emp as any).avatarUrl} size="sm" />
                         <span className="text-sm font-medium truncate">{emp.name}</span>
                         <span className="text-[10px] text-zinc-400 font-semibold">{emp.count} logs</span>
                       </div>

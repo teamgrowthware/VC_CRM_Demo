@@ -39,7 +39,7 @@ export const GanttChart = ({
           progress = 50;
         }
 
-        let start = new Date(t.startDate as string);
+        const start = new Date(t.startDate as string);
         let end = new Date(t.deadline as string);
         if (end <= start) {
           end = addDays(start, 1);

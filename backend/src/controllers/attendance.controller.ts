@@ -43,8 +43,10 @@ export const punchIn = async (req: AuthRequest, res: Response): Promise<void> =>
 
     let status: any = 'PRESENT';
     const isTodayWeekend = isWeekend(now);
+    const todayHoliday = await prisma.holiday.findFirst({ where: { date: today } });
     let autoLeave = false;
     let isLate = false;
+    let lateCount = 0;
 
     // Use Asia/Kolkata timezone to determine local time
     const options = { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: 'numeric', hour12: false } as const;
@@ -60,7 +62,9 @@ export const punchIn = async (req: AuthRequest, res: Response): Promise<void> =>
     const HALFDAY_DIRECT_THRESHOLD = settings.halfDayEnabled ? 10.0 : 13.0; // 10:00 AM if enabled, else 01:00 PM
     const ABSENT_DIRECT_THRESHOLD = 14.0; // 02:00 PM
 
-    if (isTodayWeekend) {
+    if (todayHoliday) {
+      status = 'HOLIDAY_WORK';
+    } else if (isTodayWeekend) {
       status = 'WEEKEND_WORK';
     } else if (timeInHours > ABSENT_DIRECT_THRESHOLD) {
       status = 'ABSENT';
@@ -83,7 +87,6 @@ export const punchIn = async (req: AuthRequest, res: Response): Promise<void> =>
         }
       });
 
-      let lateCount = 0;
       latesThisMonth.forEach(record => {
         if (record.punchIn) {
           const recParts = formatter.format(record.punchIn).split(':');
@@ -98,9 +101,11 @@ export const punchIn = async (req: AuthRequest, res: Response): Promise<void> =>
       });
 
       // Rules for accumulated lates:
-      if (lateCount < 2) {
+      // 3 lates allowed (just warning), 4th late = halfday, 6th+ = absent
+      const LATE_ALLOWED_COUNT = 3;
+      if (lateCount <= LATE_ALLOWED_COUNT) {
         status = 'LATE';
-      } else if (lateCount < 5) {
+      } else if (lateCount < 6) {
         status = 'HALFDAY';
         autoLeave = true;
       } else {
@@ -118,10 +123,19 @@ export const punchIn = async (req: AuthRequest, res: Response): Promise<void> =>
     await logDeviceAction(req, employeeId, attendance.id, 'PUNCH_IN', deviceMetadata);
 
     if (isLate) {
+      const currentLateNum = lateCount + 1;
+      let lateMsg = '';
+      if (status === 'HALFDAY') {
+        lateMsg = `This is your ${currentLateNum}${currentLateNum === 4 ? 'th' : currentLateNum === 5 ? 'th' : 'th'} late — marked as HALF DAY.`;
+      } else if (status === 'ABSENT') {
+        lateMsg = `This is your ${currentLateNum}th late — marked as ABSENT.`;
+      } else {
+        lateMsg = `Late ${currentLateNum}/3 allowed this month.`;
+      }
       await createNotification(
         employeeId,
         'LATE_ARRIVAL',
-        `Late Warning: You punched in at ${now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}. Please adhere to the shift start time.`,
+        `Late Warning: Punched in at ${now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}. ${lateMsg}`,
         '/dashboard/attendance'
       );
     }
@@ -139,7 +153,7 @@ export const punchIn = async (req: AuthRequest, res: Response): Promise<void> =>
           startDate: today,
           endDate: today,
           numberOfDays: numDays === 0.5 ? 0 : 1,
-          reason: `System Auto-Deducted ${status}: ${status === 'ABSENT' ? 'Arrival after 02:00 PM / 6th late' : (settings.halfDayEnabled ? 'Arrival after 10 AM / 3rd late' : 'Arrival after 01:00 PM')}`,
+          reason: `System Auto-Deducted ${status}: ${status === 'ABSENT' ? 'Arrival after 02:00 PM / 6th late' : (settings.halfDayEnabled ? 'Arrival after 10 AM / 4th late' : 'Arrival after 01:00 PM / 4th late')}`,
           status: 'APPROVED'
         }
       });
@@ -169,7 +183,7 @@ export const punchIn = async (req: AuthRequest, res: Response): Promise<void> =>
       '/dashboard/daily-reports'
     );
 
-    res.status(201).json({ success: true, message: 'Punch in successful', data: attendance, isLate, autoLeave });
+    res.status(201).json({ success: true, message: 'Punch in successful', data: attendance, isLate, autoLeave, lateCount: isLate ? lateCount + 1 : 0 });
   } catch (error) {
     console.error('Punch in error:', error);
     res.status(500).json({ success: false, message: 'Failed to punch in' });
@@ -586,7 +600,13 @@ export const getAllAttendance = async (req: AuthRequest, res: Response): Promise
     let whereCondition: any = {};
 
     if (date) {
-      const qDate = getShiftBounds(new Date(date as string));
+      const parts = (date as string).split('-');
+      let qDate;
+      if (parts.length === 3) {
+        qDate = getShiftBounds(new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
+      } else {
+        qDate = getShiftBounds(new Date(date as string));
+      }
       whereCondition.date = qDate;
     } else if (month && year) {
       const startDate = new Date(Number(year), Number(month) - 1, 1, 0, 0, 0, 0);
@@ -599,7 +619,13 @@ export const getAllAttendance = async (req: AuthRequest, res: Response): Promise
 
     // If a specific date is requested, we want to show all employees even if they don't have a record
     if (date && !month && !year) {
-      const qDate = getShiftBounds(new Date(date as string));
+      const parts = (date as string).split('-');
+      let qDate;
+      if (parts.length === 3) {
+        qDate = getShiftBounds(new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
+      } else {
+        qDate = getShiftBounds(new Date(date as string));
+      }
       const activeEmployees = await prisma.employee.findMany({
         where: { status: 'ACTIVE' },
         select: { 
@@ -705,6 +731,8 @@ export const getCalendarData = async (req: AuthRequest, res: Response): Promise<
       else if (att.status === 'ABSENT') color = 'red';
       else if (att.status === 'WEEKEND') color = 'gray';
       else if (att.status === 'WEEKEND_WORK') color = 'indigo';
+      else if (att.status === 'HOLIDAY') color = 'blue';
+      else if (att.status === 'HOLIDAY_WORK') color = 'cyan';
 
       calendarData.push({
         type: 'ATTENDANCE',
@@ -754,7 +782,7 @@ export const getCalendarData = async (req: AuthRequest, res: Response): Promise<
 
 export const updateAttendanceStatus = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const { status, note } = req.body;
     const currentUserId = req.user.id;
     const currentUserRole = req.user.role;
@@ -919,7 +947,7 @@ export const getEarlyExitAnalytics = async (req: AuthRequest, res: Response): Pr
 
 export const deletePenalty = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
 
     const penalty = await prisma.penalty.findUnique({
       where: { id }

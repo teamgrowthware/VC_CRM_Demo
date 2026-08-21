@@ -4,7 +4,8 @@ import {
   getMyPayslips,
   getAllPayslips,
   generateAllPayslips,
-  deletePayslip
+  deletePayslip,
+  updatePayslip
 } from '../controllers/payslip.controller';
 import { authenticateToken, authorizeRoles } from '../middleware/auth.middleware';
 
@@ -20,5 +21,6 @@ router.get('/mine', getMyPayslips);
 router.get('/all', authorizeRoles('ADMIN', 'HR'), getAllPayslips);
 router.post('/generate', authorizeRoles('ADMIN', 'HR'), generateAllPayslips);
 router.delete('/:id', authorizeRoles('ADMIN'), deletePayslip);
+router.patch('/:id', authorizeRoles('ADMIN', 'HR'), updatePayslip);
 
 export default router;

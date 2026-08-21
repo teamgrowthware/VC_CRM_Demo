@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -18,10 +18,11 @@ import {
 import { 
    User, Briefcase, Calendar, CheckCircle, Clock, 
    Activity, FileText, AlertCircle, TrendingUp, Timer,
-   Lock, Edit, X, Save, Key, Eye, EyeOff
+   Lock, Edit, X, Save, Key, Eye, EyeOff, Trash, Camera, Loader2
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { updateEmployee } from '@/lib/api/employee';
+import { updateEmployee, deleteEmployee } from '@/lib/api/employee';
+import { uploadAvatar } from '@/lib/api/settings';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 
@@ -53,8 +54,38 @@ export default function EmployeeProfilePage() {
       designation: '',
       name: ''
   });
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
 
-  const canManage = currentUser?.role === 'ADMIN' || currentUser?.role === 'HR' || (currentUser?.role === 'MANAGER' && profile?.role === 'EMPLOYEE');
+  const canManage = currentUser?.role === 'ADMIN' || (currentUser?.role === 'HR' && profile?.role !== 'ADMIN') || (currentUser?.role === 'MANAGER' && profile?.role === 'EMPLOYEE');
+  
+  // Only the admin themselves can reset their own password. Other admins/HR cannot see it.
+  const canResetPassword = canManage && (profile?.role !== 'ADMIN' || currentUser?.id === id);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    try {
+      setUploadingAvatar(true);
+      const res = await uploadAvatar(file);
+      setProfile((prev: any) => prev ? { ...prev, avatarUrl: res.data.avatarUrl } : prev);
+      if (currentUser?.id === id) {
+        const updatedUser = { ...(JSON.parse(localStorage.getItem('user') || '{}')), avatarUrl: res.data.avatarUrl };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new Event('storage'));
+      }
+      toast.success('Avatar updated');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to upload avatar');
+    } finally {
+      setUploadingAvatar(false);
+      if (avatarFileRef.current) avatarFileRef.current.value = '';
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -123,14 +154,35 @@ export default function EmployeeProfilePage() {
   };
 
   const handleUpdateProfile = async () => {
+    if (editForm.phone && !/^\d{10}$/.test(editForm.phone)) {
+      toast.error("Phone number must be exactly 10 digits");
+      return;
+    }
     try {
         await updateEmployee(id, editForm);
         toast.success("Profile updated successfully");
         setIsEditModalOpen(false);
-        // Refresh profile state
         setProfile((prev: any) => ({ ...prev, ...editForm }));
-    } catch (err) {
-        toast.error("Failed to update profile");
+    } catch (err: any) {
+        const msg = err?.response?.data?.message || "Failed to update profile";
+        toast.error(msg);
+    }
+  };
+
+  const handleDeleteProfile = async () => {
+    if (currentUser?.id === id) {
+      toast.error("You cannot deactivate your own account");
+      return;
+    }
+    const confirmed = window.confirm("Are you sure you want to deactivate this employee? They will no longer be able to log in.");
+    if (!confirmed) return;
+    try {
+        await deleteEmployee(id);
+        toast.success("Employee deactivated successfully");
+        router.push('/dashboard/employees');
+    } catch (err: any) {
+        const msg = err?.response?.data?.message || "Failed to delete employee";
+        toast.error(msg);
     }
   };
 
@@ -174,8 +226,22 @@ export default function EmployeeProfilePage() {
       
       {/* Top Profile Card */}
       <div className="bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 lg:p-8 shadow-sm flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 overflow-hidden relative">
-         <div className="w-24 h-24 lg:w-32 lg:h-32 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-3xl lg:text-5xl font-bold flex-shrink-0">
-            {profile.name.substring(0, 2).toUpperCase()}
+         <div className="relative group flex-shrink-0">
+            {profile.avatarUrl ? (
+              <img src={profile.avatarUrl} alt={profile.name} className="w-24 h-24 lg:w-32 lg:h-32 rounded-full object-cover" />
+            ) : (
+              <div className="w-24 h-24 lg:w-32 lg:h-32 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-3xl lg:text-5xl font-bold">
+                {profile.name.substring(0, 2).toUpperCase()}
+              </div>
+            )}
+            {canManage && (
+              <>
+                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => avatarFileRef.current?.click()}>
+                  {uploadingAvatar ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : <Camera className="w-6 h-6 text-white" />}
+                </div>
+                <input ref={avatarFileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+              </>
+            )}
          </div>
          
          <div className="flex-1 text-center md:text-left space-y-3">
@@ -206,12 +272,22 @@ export default function EmployeeProfilePage() {
                     >
                         <Edit className="w-3.5 h-3.5" /> Edit Profile
                     </button>
-                    <button 
-                        onClick={() => setIsResetModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl text-xs font-bold transition-all text-orange-600"
-                    >
-                        <Key className="w-3.5 h-3.5" /> Reset Password
-                    </button>
+                    {canResetPassword && (
+                        <button 
+                            onClick={() => setIsResetModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl text-xs font-bold transition-all text-orange-600"
+                        >
+                            <Key className="w-3.5 h-3.5" /> Reset Password
+                        </button>
+                    )}
+                    {(currentUser?.role === 'ADMIN' || currentUser?.role === 'HR') && (
+                        <button 
+                            onClick={handleDeleteProfile}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 rounded-xl text-xs font-bold transition-all"
+                        >
+                            <Trash className="w-3.5 h-3.5" /> Delete
+                        </button>
+                    )}
                 </div>
             )}
          </div>
@@ -633,9 +709,15 @@ export default function EmployeeProfilePage() {
                           <input 
                               type="text"
                               value={editForm.phone}
+                              maxLength={10}
+                              onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, ''); }}
                               onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                              placeholder="1234567890"
                               className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 transition-all"
                           />
+                          {editForm.phone && !/^\d{10}$/.test(editForm.phone) && (
+                            <p className="text-xs text-red-500">Must be exactly 10 digits</p>
+                          )}
                       </div>
                       <div className="space-y-1.5">
                           <label className="text-xs font-black uppercase text-zinc-400 tracking-wider">Designation</label>

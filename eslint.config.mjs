@@ -9,12 +9,10 @@ const eslintConfig = defineConfig([
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
-      "@typescript-eslint/no-require-imports": "off",
-      "prefer-const": "off",
       "react-hooks/exhaustive-deps": "off",
-      "react/no-unescaped-entities": "off",
-      "react-hooks/set-state-in-effect": "off"
-    },
+      "@next/next/no-img-element": "off",
+      "react/no-unescaped-entities": "off"
+    }
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([

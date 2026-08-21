@@ -14,8 +14,6 @@ import { TaskDetailSidebar } from '@/components/tasks/TaskDetailSidebar';
 import { CreateTaskModal } from '@/components/tasks/CreateTaskModal';
 import { useAuth } from '@/hooks/useAuth';
 import { Plus } from 'lucide-react';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { toast } from 'sonner';
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -24,10 +22,6 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  
-  // Confirm Dialog State
-  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchTasks = async () => {
     try {
@@ -45,24 +39,15 @@ export default function TasksPage() {
     fetchTasks();
   }, []);
 
-  const confirmDelete = async () => {
-    if (!taskToDelete) return;
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this task?')) return;
     try {
-      setIsDeleting(true);
-      await deleteTask(taskToDelete);
-      toast.success('Task deleted successfully');
+      await deleteTask(id);
       fetchTasks();
     } catch (e) {
       console.error(e);
-      toast.error('Failed to delete task. You might not have permission.');
-    } finally {
-      setIsDeleting(false);
-      setTaskToDelete(null);
+      alert('Failed to delete task. You might not have permission.');
     }
-  };
-
-  const handleDelete = (id: string) => {
-    setTaskToDelete(id);
   };
 
   const handleExport = () => {
@@ -254,15 +239,6 @@ export default function TasksPage() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={fetchTasks}
-      />
-      
-      <ConfirmDialog 
-        isOpen={!!taskToDelete}
-        title="Delete Task"
-        message="Are you sure you want to delete this task? This action cannot be undone."
-        isLoading={isDeleting}
-        onConfirm={confirmDelete}
-        onCancel={() => setTaskToDelete(null)}
       />
     </div>
   );

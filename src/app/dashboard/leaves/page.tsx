@@ -7,6 +7,7 @@ import {
   getMyLeaves,
   applyLeave,
   updateLeaveStatus,
+  markLeaveAsPaid,
   Leave
 } from '@/lib/api/leave';
 import {
@@ -63,10 +64,8 @@ export default function LeavesPage() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      const start = new Date(formData.startDate);
-      const end = new Date(formData.endDate);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(0, 0, 0, 0);
+      const start = new Date(`${formData.startDate}T00:00:00`);
+      const end = new Date(`${formData.endDate}T00:00:00`);
       if (end < start) {
         alert('End date must be on or after the start date');
         setIsSubmitting(false);
@@ -99,6 +98,15 @@ export default function LeavesPage() {
       fetchData();
     } catch (error) {
       alert('Failed to update status');
+    }
+  };
+
+  const handleTogglePaid = async (id: string, currentIsPaid: boolean) => {
+    try {
+      await markLeaveAsPaid(id, !currentIsPaid);
+      fetchData();
+    } catch (error) {
+      alert('Failed to update leave payment status');
     }
   };
 
@@ -239,7 +247,7 @@ export default function LeavesPage() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
-                            <span className="text-xs font-medium">{format(new Date(`${leave.startDate}T00:00:00`), 'MMM dd')} - {format(new Date(`${leave.endDate}T00:00:00`), 'MMM dd')}</span>
+                            <span className="text-xs font-medium">{format(new Date(leave.startDate), 'MMM dd')} - {format(new Date(leave.endDate), 'MMM dd')}</span>
                             <span className="text-[10px] text-blue-500 font-bold">{leave.numberOfDays} Days</span>
                           </div>
                         </td>
@@ -252,6 +260,15 @@ export default function LeavesPage() {
                           }`}>
                             {leave.status}
                           </span>
+                          {leave.status === 'APPROVED' && (
+                            <span className={`ml-1.5 text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                              leave.isPaid
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+                            }`}>
+                              {leave.isPaid ? 'PAID' : 'UNPAID'}
+                            </span>
+                          )}
                         </td>
                         {activeTab === 'team' && (
                           <td className="px-6 py-4 text-right">
@@ -272,6 +289,18 @@ export default function LeavesPage() {
                                   <X className="w-4 h-4" />
                                 </button>
                               </div>
+                            ) : leave.status === 'APPROVED' && canManageTeam ? (
+                              <button
+                                onClick={() => handleTogglePaid(leave.id, leave.isPaid)}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${
+                                  leave.isPaid
+                                    ? 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white dark:bg-blue-900/30 dark:text-blue-400'
+                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                }`}
+                                title={leave.isPaid ? 'Mark as Unpaid Leave' : 'Mark as Paid Leave'}
+                              >
+                                {leave.isPaid ? 'Paid' : 'Mark Paid'}
+                              </button>
                             ) : (
                                 <span className="text-[10px] text-zinc-400 italic">Actioned</span>
                             )}

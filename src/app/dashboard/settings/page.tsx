@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import api from '@/lib/api/apiClient';
 import { 
@@ -23,7 +23,8 @@ import {
   Briefcase,
   AtSign,
   Calendar,
-  Hash
+  Hash,
+  Camera
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -33,6 +34,7 @@ import {
   updateSystemSettings,
   updateSelfProfile,
   changeMyPassword,
+  uploadAvatar,
   type SystemSettings,
 } from '@/lib/api/settings';
 
@@ -45,9 +47,10 @@ interface ProfileData {
   phone?: string | null;
   department?: { name?: string } | null;
   joiningDate?: string | null;
+  avatarUrl?: string | null;
 }
 
-const getApiErrorMessage = (err: unknown, fallback: string) => {
+const getApiErrorMessage = (err: any, fallback: string) => {
   const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
   return data?.error || data?.message || fallback;
 };
@@ -65,6 +68,7 @@ const NOTIFICATION_GROUPS: NotificationGroup[] = [
       { value: 'TASK_DUE_SOON', label: 'Task Due Soon' },
       { value: 'TASK_OVERDUE', label: 'Task Overdue' },
       { value: 'COMMENT_ADDED', label: 'Comment Added' },
+      { value: 'PROJECT_ASSIGNED', label: 'Project Assigned' },
       { value: 'PROJECT_UPDATED', label: 'Project Updated' },
       { value: 'DOCUMENT_UPLOADED', label: 'Document Uploaded' },
     ],
@@ -131,6 +135,9 @@ export default function SettingsPage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Notifications
   const [enabledTypes, setEnabledTypes] = useState<string[]>([]);
@@ -179,6 +186,31 @@ export default function SettingsPage() {
       toast.error(getApiErrorMessage(err, 'Failed to update profile'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    try {
+      setUploadingAvatar(true);
+      const res = await uploadAvatar(file);
+      const newAvatarUrl = res.data.avatarUrl;
+      setAvatarPreview(null);
+      setProfile((prev) => prev ? { ...prev, avatarUrl: newAvatarUrl } : prev);
+      const updatedUser = { ...(JSON.parse(localStorage.getItem('user') || '{}')), avatarUrl: newAvatarUrl };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      window.dispatchEvent(new Event('storage'));
+      toast.success('Avatar updated successfully');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to upload avatar'));
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -304,6 +336,26 @@ export default function SettingsPage() {
                   <h3 className="font-bold">Profile</h3>
                 </div>
 
+                <div className="flex items-center gap-4">
+                  <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                    {(avatarPreview || profile?.avatarUrl) ? (
+                      <img src={avatarPreview || profile?.avatarUrl || ''} alt="Avatar" className="w-20 h-20 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-2xl font-bold">
+                        {name.substring(0, 2).toUpperCase() || '?'}
+                      </div>
+                    )}
+                    <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {uploadingAvatar ? <Loader2 className="w-5 h-5 text-white animate-spin" /> : <Camera className="w-5 h-5 text-white" />}
+                    </div>
+                  </div>
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                  <div className="text-xs text-zinc-500">
+                    <p className="font-bold">Profile Photo</p>
+                    <p>JPG, PNG or WebP. Max 5MB.</p>
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-zinc-500 uppercase">Full Name</label>
                   <input
@@ -319,10 +371,15 @@ export default function SettingsPage() {
                   <input
                     type="tel"
                     value={phone}
+                    maxLength={10}
+                    onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, ''); }}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+91 XXXXX XXXXX"
+                    placeholder="1234567890"
                     className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  {phone && !/^\d{10}$/.test(phone) && (
+                    <p className="text-xs text-red-500">Must be exactly 10 digits</p>
+                  )}
                 </div>
 
                 <div className="pt-2 flex justify-end">
@@ -523,7 +580,7 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl">
                       <div className="space-y-0.5">
                         <p className="text-sm font-bold">Late Coming Policy</p>
-                        <p className="text-[10px] text-zinc-500">Enable strict late coming rules (3 lates = half day)</p>
+                        <p className="text-[10px] text-zinc-500">Enable strict late coming rules (3 lates allowed, 4th = half day, 6th+ = absent)</p>
                       </div>
                       <input 
                         type="checkbox"
@@ -699,7 +756,7 @@ export default function SettingsPage() {
                               setSettings(prev => ({ ...prev!, desktopAppEnabledRoles: newRoles }));
                             }}
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all ${
-                              (settings?.desktopAppEnabledRoles || []).includes(role)
+                              settings?.desktopAppEnabledRoles.includes(role)
                               ? 'bg-purple-600 text-white'
                               : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-200'
                             }`}

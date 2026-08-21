@@ -11,6 +11,25 @@ export interface PayslipPenalty {
   reason?: string | null;
 }
 
+export interface PayslipLeave {
+  id?: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  numberOfDays: number;
+  reason: string;
+  isPaid: boolean;
+  status?: string;
+}
+
+export interface PayslipDeductionBreakdownItem {
+  type: string;
+  label: string;
+  date: string;
+  amount: number;
+  reason?: string | null;
+}
+
 export interface PayslipData {
   employee?: {
     name?: string;
@@ -31,6 +50,7 @@ export interface PayslipData {
   };
   earnings?: {
     baseSalary?: number;
+    overtimePay?: number;
     totalAddons?: number;
     addons?: PayslipItem[];
     grossEarnings?: number;
@@ -45,6 +65,10 @@ export interface PayslipData {
     penalties?: PayslipPenalty[];
     totalDeductions?: number;
   };
+  leaves?: PayslipLeave[];
+  paidLeaveDays?: number;
+  unpaidLeaveDays?: number;
+  deductionBreakdown?: PayslipDeductionBreakdownItem[];
   netSalary?: number;
 }
 
@@ -89,5 +113,10 @@ export const generateAllPayslips = async (month: number, year: number) => {
 
 export const deletePayslip = async (id: string) => {
   const response = await apiClient.delete(`/payslips/${id}`);
+  return response.data;
+};
+
+export const editPayslip = async (id: string, data: { netSalary?: number; data?: PayslipData }) => {
+  const response = await apiClient.patch(`/payslips/${id}`, data);
   return response.data;
 };

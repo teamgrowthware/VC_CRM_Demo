@@ -32,7 +32,7 @@ export default function ProductivityChart() {
                 Absent: 0
               };
             }
-            if (item.status === 'PRESENT' || item.status === 'HALFDAY' || item.status === 'WEEKEND_WORK') {
+            if (item.status === 'PRESENT' || item.status === 'HALFDAY' || item.status === 'WEEKEND_WORK' || item.status === 'HOLIDAY' || item.status === 'HOLIDAY_WORK') {
               formattedData[key].Present += item._count.id;
             }
             if (item.status === 'ABSENT') {

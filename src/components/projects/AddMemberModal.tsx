@@ -64,7 +64,7 @@ export default function AddMemberModal({ isOpen, onClose, projectId, onSuccess }
       onSuccess();
       onClose();
       setFormData({ employeeId: '', role: 'DEVELOPER' });
-    } catch (error: any) {
+    } catch (thrown) { const error = thrown as ApiError;
       console.error('Failed to add member:', error);
       toast.error(error.response?.data?.message || 'Failed to add member. They might already be in the project.');
     } finally {

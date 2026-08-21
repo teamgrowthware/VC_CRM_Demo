@@ -9,7 +9,8 @@ import {
   startBreak, 
   endBreak, 
   startLunch, 
-  endLunch 
+  endLunch,
+  PunchInResponse 
 } from '@/lib/api/attendance';
 import { Clock, Coffee, Utensils, LogOut, Loader2, X, AlertCircle } from 'lucide-react';
 import { createPortal } from 'react-dom';
@@ -51,6 +52,7 @@ export const AttendanceControls = ({ onActionComplete }: { onActionComplete?: ()
   const [currentActiveHours, setCurrentActiveHours] = useState(0);
   const [breakAlertShown, setBreakAlertShown] = useState(false);
   const [showBreakOverModal, setShowBreakOverModal] = useState(false);
+  const [lateCount, setLateCount] = useState(0);
 
   useEffect(() => {
     // Clock or Active Time effect
@@ -156,7 +158,7 @@ export const AttendanceControls = ({ onActionComplete }: { onActionComplete?: ()
     [endLunch.name]: 'Lunch ended',
   };
 
-  const handleAction = async (actionFn: (arg1?: any, arg2?: any) => Promise<Attendance>, earlyReasonArg?: string): Promise<boolean> => {
+  const handleAction = async (actionFn: (arg1?: any, arg2?: any) => Promise<any>, earlyReasonArg?: string): Promise<boolean> => {
     if (isActionRunningRef.current || cooldownRemaining > 0) return false;
     try {
       isActionRunningRef.current = true;
@@ -164,17 +166,29 @@ export const AttendanceControls = ({ onActionComplete }: { onActionComplete?: ()
 
       const deviceMeta = await getClientDeviceMetadata();
 
-      let data;
+      let result;
       if (actionFn === punchOut && earlyReasonArg) {
-        data = await actionFn(earlyReasonArg, deviceMeta);
+        result = await actionFn(earlyReasonArg, deviceMeta);
       } else if (actionFn === punchOut) {
-        data = await actionFn(undefined, deviceMeta);
+        result = await actionFn(undefined, deviceMeta);
       } else {
-        // Other actions just take deviceMeta as first arg since we refactored attendance.ts
-        data = await actionFn(deviceMeta);
+        result = await actionFn(deviceMeta);
       }
 
-      setAttendance(data);
+      if (actionFn === punchIn && result && typeof result === 'object' && 'data' in result) {
+        const punchResult = result as PunchInResponse;
+        setAttendance(punchResult.data);
+        if (punchResult.isLate && punchResult.lateCount > 0) {
+          setLateCount(punchResult.lateCount);
+          if (punchResult.autoLeave) {
+            toast.error(`Late #${punchResult.lateCount} — Marked as ${punchResult.lateCount >= 6 ? 'ABSENT' : 'HALF DAY'}`);
+          } else {
+            toast.warning(`Late #${punchResult.lateCount}/3 allowed`);
+          }
+        }
+      } else {
+        setAttendance(result);
+      }
 
       // Set 30 sec cooldown
       localStorage.setItem('attendance_cooldown', (Date.now() + 30000).toString());
@@ -184,7 +198,7 @@ export const AttendanceControls = ({ onActionComplete }: { onActionComplete?: ()
 
       if (onActionComplete) onActionComplete();
       return true;
-    } catch (error: any) {
+    } catch (thrown) { const error = thrown as ApiError;
       console.error(error);
       const message = error?.response?.data?.message || error?.message || 'Action failed. Please try again.';
       toast.error(message);
@@ -274,8 +288,32 @@ export const AttendanceControls = ({ onActionComplete }: { onActionComplete?: ()
           <div className="text-2xl font-bold tracking-tight mb-2">
             {timeText || '00:00:00'}
           </div>
-          <div className="px-4 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800/50 text-sm">
-            {renderStatus()}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="px-4 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800/50 text-sm">
+              {renderStatus()}
+            </div>
+            {attendance?.status === 'LATE' && (
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                LATE
+              </span>
+            )}
+            {attendance?.status === 'HALFDAY' && (
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                HALF DAY
+              </span>
+            )}
+            {attendance?.status === 'ABSENT' && (
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
+                ABSENT
+              </span>
+            )}
+            {hasPunchedIn && attendance?.punchIn && (
+              <span className="text-xs text-zinc-500 font-medium border-l border-zinc-200 dark:border-zinc-800 pl-3">
+                In: {new Date(attendance.punchIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {attendance.punchOut && ` | Out: ${new Date(attendance.punchOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                {attendance.totalHours != null && ` | ${attendance.totalHours.toFixed(1)}h`}
+              </span>
+            )}
           </div>
         </div>
 
@@ -353,6 +391,41 @@ export const AttendanceControls = ({ onActionComplete }: { onActionComplete?: ()
 
         </div>
       </div>
+
+      {/* Today's Data Summary */}
+      {hasPunchedIn && attendance && (
+        <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+          <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3">Today&apos;s Timeline</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-2.5">
+              <p className="text-[10px] text-zinc-400 uppercase font-bold">Punch In</p>
+              <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                {attendance.punchIn ? new Date(attendance.punchIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+              </p>
+            </div>
+            <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-2.5">
+              <p className="text-[10px] text-zinc-400 uppercase font-bold">Punch Out</p>
+              <p className="text-sm font-bold text-rose-600 dark:text-rose-400">
+                {attendance.punchOut ? new Date(attendance.punchOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (hasPunchedOut ? '-' : 'Active')}
+              </p>
+            </div>
+            <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-2.5">
+              <p className="text-[10px] text-zinc-400 uppercase font-bold">Break</p>
+              <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                {attendance.break1End && attendance.break1Start
+                  ? `${((new Date(attendance.break1End).getTime() - new Date(attendance.break1Start).getTime()) / 60000).toFixed(0)}m`
+                  : isBreak1Active ? 'Ongoing' : '-'}
+              </p>
+            </div>
+            <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-2.5">
+              <p className="text-[10px] text-zinc-400 uppercase font-bold">Total Hours</p>
+              <p className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                {attendance.totalHours != null ? `${attendance.totalHours.toFixed(1)}h` : `${currentActiveHours.toFixed(1)}h`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showEarlyExitModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">

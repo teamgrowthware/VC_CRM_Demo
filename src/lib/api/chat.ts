@@ -67,9 +67,9 @@ export const getMyChatRooms = async (): Promise<ChatRoom[]> => {
   return data;
 };
 
-export const createChatRoom = async (name: string | null, type: string, memberIds: string[], description?: string): Promise<{chatRoom: ChatRoom}> => {
+export const createChatRoom = async (name: string | null, type: string, memberIds: string[], description?: string, avatarUrl?: string, clientId?: string): Promise<{chatRoom: ChatRoom}> => {
   const { data } = await apiClient.post(`/chat/rooms`, 
-    { name, type, memberIds, description }
+    { name, type, memberIds, description, avatarUrl, clientId }
   );
   return data;
 };
@@ -82,23 +82,27 @@ export const getMessagesByRoom = async (roomId: string, limit = 50, cursor?: str
   return data;
 };
 
-export const sendMessage = async (roomId: string, content: string, receiverId?: string, fileUrl?: string, fileType?: string): Promise<{newMessage: Message}> => {
+export const sendMessage = async (roomId: string, content: string, receiverId?: string, fileUrl?: string, fileType?: string, mentions?: string[]): Promise<{newMessage: Message}> => {
   const { data } = await apiClient.post(`/chat/messages`, 
-    { roomId, content, receiverId, fileUrl, fileType }
+    { roomId, content, receiverId, fileUrl, fileType, mentions }
   );
   return data;
 };
 
-export const uploadChatFile = async (file: File): Promise<{url: string, type: string, name: string, size: number}> => {
+export const uploadChatFile = async (file: File): Promise<{ url: string; type: string; name: string; size: number }> => {
   const formData = new FormData();
   formData.append('file', file);
-  
-  const { data } = await apiClient.post(`/chat/upload`, formData, {
+  const response = await apiClient.post('/chat/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
-    }
+    },
   });
-  return data;
+  return response.data;
+};
+
+export const getChatClients = async () => {
+  const response = await apiClient.get('/chat/clients');
+  return response.data;
 };
 
 // Advanced Endpoints
@@ -122,12 +126,12 @@ export const restoreChatGroup = async (roomId: string): Promise<ChatRoom> => {
   return data;
 };
 
-export const addGroupMember = async (roomId: string, employeeId: string): Promise<ChatMember> => {
-  const { data } = await apiClient.post(`/chat/rooms/${roomId}/members`, { employeeId });
+export const addGroupMember = async (roomId: string, employeeId?: string, clientId?: string): Promise<ChatMember> => {
+  const { data } = await apiClient.post(`/chat/rooms/${roomId}/members`, { employeeId, clientId });
   return data;
 };
 
-export const removeGroupMember = async (roomId: string, employeeId: string): Promise<{ success: boolean }> => {
-  const { data } = await apiClient.delete(`/chat/rooms/${roomId}/members/${employeeId}`);
+export const removeGroupMember = async (roomId: string, memberId: string): Promise<{ success: boolean }> => {
+  const { data } = await apiClient.delete(`/chat/rooms/${roomId}/members/${memberId}`);
   return data;
 };

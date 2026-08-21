@@ -15,6 +15,8 @@ export default function ClientChat() {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const activeRoomId = activeRoom?.id;
 
   const clientUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('clientUser') || '{}') : {};
 
@@ -27,32 +29,32 @@ export default function ClientChat() {
           setActiveRoom(filtered[0]);
         }
       })
-      .catch(console.error)
+      .catch(() => setError('Unable to load your chats. Please try again.'))
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    if (!activeRoom) return;
-    getMessagesByRoom(activeRoom.id, 50)
+    if (!activeRoomId) return;
+    getMessagesByRoom(activeRoomId, 50)
       .then(setMessages)
-      .catch(console.error);
-  }, [activeRoom?.id]);
+      .catch(() => setError('Unable to load messages for this chat. Please try again.'));
+  }, [activeRoomId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   useEffect(() => {
-    if (!socket || !activeRoom) return;
+    if (!socket || !activeRoomId) return;
     const handleNewMessage = (msg: Message) => {
-      if (msg.roomId === activeRoom.id) {
+      if (msg.roomId === activeRoomId) {
         setMessages(prev => [...prev, msg]);
       }
       setRooms(prev => prev.map(r => r.id === msg.roomId ? { ...r, updatedAt: msg.createdAt } : r));
     };
     socket.on('receiveMessage', handleNewMessage);
     return () => { socket.off('receiveMessage', handleNewMessage); };
-  }, [socket, activeRoom?.id]);
+  }, [socket, activeRoomId]);
 
   const handleSend = async () => {
     if (!input.trim() || !activeRoom || sending) return;
@@ -116,7 +118,7 @@ export default function ClientChat() {
           {filteredRooms.length === 0 ? (
             <div className="p-6 text-center text-sm text-muted-foreground">
               <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              No chats found
+              {error || 'No chats found'}
             </div>
           ) : (
             filteredRooms.map(room => (

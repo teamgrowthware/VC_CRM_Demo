@@ -281,7 +281,7 @@ export const addManualEntry = async (req: AuthRequest, res: Response) => {
 
 export const updateTimeEntry = async (req: AuthRequest, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const employeeId = req.user?.id;
     const role = req.user?.role;
     if (!employeeId) return res.status(401).json({ message: 'Unauthorized' });
@@ -335,7 +335,7 @@ export const updateTimeEntry = async (req: AuthRequest, res: Response) => {
 
 export const deleteTimeEntry = async (req: AuthRequest, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const employeeId = req.user?.id;
     const role = req.user?.role;
     if (!employeeId) return res.status(401).json({ message: 'Unauthorized' });
@@ -464,7 +464,7 @@ export const getAdminEntries = async (req: Request, res: Response) => {
 
 export const approveEntry = async (req: AuthRequest, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const adminId = req.user?.id;
     if (!adminId) return res.status(401).json({ message: 'Unauthorized' });
 
@@ -495,9 +495,10 @@ export const approveEntry = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const rejectEntry = async (req: Request, res: Response) => {
+export const rejectEntry = async (req: AuthRequest, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
+    const adminId = req.user?.id;
     const { reason } = req.body;
 
     const entry = await prisma.timeEntry.update({
@@ -508,6 +509,18 @@ export const rejectEntry = async (req: Request, res: Response) => {
         isLocked: false
       }
     });
+
+    if (adminId) {
+      await prisma.activityLog.create({
+        data: {
+          type: 'TIMESHEET_REJECTED',
+          message: `Timesheet entry ${id} rejected by admin ${adminId}${reason ? `: ${reason}` : ''}`,
+          entityType: 'TimeEntry',
+          entityId: id,
+          userId: adminId
+        }
+      });
+    }
 
     res.json(entry);
   } catch (error) {
@@ -580,7 +593,7 @@ export const getProjectTimeSummary = async (req: Request, res: Response) => {
 
 export const getProjectAnalytics = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     
     const project = await prisma.project.findUnique({
       where: { id },

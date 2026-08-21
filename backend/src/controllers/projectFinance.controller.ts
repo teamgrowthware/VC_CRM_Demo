@@ -1,22 +1,22 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
-import { MilestoneStatus } from '@prisma/client';
+import { MilestoneStatus, Prisma } from '@prisma/client';
 import { logActivity } from '../services/activity.service';
 import { createNotification } from '../services/notification.service';
 
 /**
  * Helper to update project finance totals
  */
-const updateProjectTotals = async (projectId: string) => {
-  const project = await prisma.project.findUnique({
+const updateProjectTotals = async (db: Prisma.TransactionClient | typeof prisma, projectId: string) => {
+  const project = await db.project.findUnique({
     where: { id: projectId },
     select: { totalValue: true }
   });
 
   const totalValue = project?.totalValue || 0;
 
-  const payments = await prisma.projectPayment.aggregate({
+  const payments = await db.projectPayment.aggregate({
     where: { projectId },
     _sum: { amount: true }
   });
@@ -24,7 +24,7 @@ const updateProjectTotals = async (projectId: string) => {
   const receivedAmount = payments._sum.amount || 0;
   const pendingAmount = Math.max(0, totalValue - receivedAmount);
 
-  await prisma.project.update({
+  await db.project.update({
     where: { id: projectId },
     data: {
       receivedAmount,
@@ -33,9 +33,22 @@ const updateProjectTotals = async (projectId: string) => {
   });
 };
 
+const canManageProjectFinance = async (projectId: string, user: any): Promise<boolean> => {
+  if (user?.role === 'ADMIN') return true;
+  if (!['PROJECT_MANAGER', 'MANAGER'].includes(user?.role)) return false;
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, managerId: user.id },
+    select: { id: true }
+  });
+  return !!project;
+};
+
 export const createMilestone = async (req: Request, res: Response) => {
   try {
-    const projectId = req.params.id as string;
+    const projectId = String(req.params.id);
+    if (!(await canManageProjectFinance(projectId, (req as any).user))) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to manage this project finance' });
+    }
     const schema = z.object({
       title: z.string().min(1),
       amount: z.number().positive(),
@@ -87,13 +100,16 @@ export const createMilestone = async (req: Request, res: Response) => {
 
     res.status(201).json({ success: true, milestone });
   } catch (error) {
-    res.status(400).json({ success: false, message: 'Invalid data', error });
+    res.status(400).json({ success: false, message: 'Invalid data' });
   }
 };
 
 export const getProjectMilestones = async (req: Request, res: Response) => {
   try {
-    const projectId = req.params.id as string;
+    const projectId = String(req.params.id);
+    if (!(await canManageProjectFinance(projectId, (req as any).user))) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to manage this project finance' });
+    }
     const milestones = await prisma.projectMilestone.findMany({
       where: { projectId: projectId as any },
       include: { 
@@ -111,7 +127,10 @@ export const getProjectMilestones = async (req: Request, res: Response) => {
 
 export const recordPayment = async (req: Request, res: Response) => {
   try {
-    const projectId = req.params.id as string;
+    const projectId = String(req.params.id);
+    if (!(await canManageProjectFinance(projectId, (req as any).user))) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to manage this project finance' });
+    }
     const schema = z.object({
       milestoneId: z.string().optional(),
       amount: z.number().positive(),
@@ -126,74 +145,78 @@ export const recordPayment = async (req: Request, res: Response) => {
     const data = schema.parse(req.body);
     const userId = (req as any).user.id;
 
-    // Duplicate check for transactionId
-    if (data.transactionId) {
-      const existing = await prisma.projectPayment.findFirst({
-        where: { transactionId: data.transactionId }
-      });
-      if (existing) {
-        return res.status(400).json({ success: false, message: 'Duplicate transaction ID detected' });
-      }
-    }
+    const { payment, project } = await prisma.$transaction(async (tx) => {
+      const project = await tx.project.findUnique({ where: { id: projectId }, select: { name: true } });
+      if (!project) throw new Error('PROJECT_NOT_FOUND');
 
-    // Record the payment
-    const payment = await prisma.projectPayment.create({
-      data: {
-        projectId,
-        milestoneId: data.milestoneId,
-        amount: data.amount,
-        mode: data.mode,
-        transactionId: data.transactionId,
-        paymentReference: data.paymentReference,
-        receiptUrl: data.receiptUrl,
-        notes: data.notes,
-        createdById: userId,
-        date: data.date ? new Date(data.date) : new Date()
+      if (data.transactionId) {
+        const existing = await tx.projectPayment.findFirst({ where: { transactionId: data.transactionId } });
+        if (existing) throw new Error('DUPLICATE_TRANSACTION');
       }
-    });
 
-    // Update milestone status if applicable
-    if (data.milestoneId) {
-      const milestone = await prisma.projectMilestone.findUnique({
-        where: { id: data.milestoneId },
-        include: { payments: true }
+      let milestone: { id: string; amount: number; paidAmount: number } | null = null;
+      if (data.milestoneId) {
+        // Scope the lookup by project so a payment cannot mutate another project.
+        milestone = await tx.projectMilestone.findFirst({
+          where: { id: data.milestoneId, projectId },
+          select: { id: true, amount: true, paidAmount: true }
+        });
+        if (!milestone) throw new Error('MILESTONE_NOT_FOUND');
+      }
+
+      const payment = await tx.projectPayment.create({
+        data: {
+          projectId,
+          milestoneId: data.milestoneId,
+          amount: data.amount,
+          mode: data.mode,
+          transactionId: data.transactionId,
+          paymentReference: data.paymentReference,
+          receiptUrl: data.receiptUrl,
+          notes: data.notes,
+          createdById: userId,
+          date: data.date ? new Date(data.date) : new Date()
+        }
       });
 
       if (milestone) {
-        const totalPaid = (milestone.paidAmount || 0) + data.amount;
-        let newStatus: MilestoneStatus = 'PARTIALLY_PAID';
-        
-        if (totalPaid >= milestone.amount) {
-          newStatus = 'PAID';
-        }
-
-        await (prisma.projectMilestone as any).update({
-          where: { id: data.milestoneId },
+        const totalPaid = milestone.paidAmount + data.amount;
+        const newStatus: MilestoneStatus = totalPaid >= milestone.amount ? 'PAID' : 'PARTIALLY_PAID';
+        await tx.projectMilestone.update({
+          where: { id: milestone.id },
           data: {
             paidAmount: totalPaid,
             status: newStatus,
-            paidDate: newStatus === 'PAID' ? new Date() : undefined
+            completedAt: newStatus === 'PAID' ? new Date() : undefined
           }
         });
       }
-    }
 
-    // Update project totals
-    await updateProjectTotals(projectId as string);
-
-    const project = await prisma.project.findUnique({ where: { id: projectId as any } });
+      await updateProjectTotals(tx, projectId);
+      return { payment, project };
+    });
 
     await logActivity(
       userId,
       'PAYMENT_RECORDED',
-      `recorded payment of ₹${data.amount} for project "${project?.name}"`,
+      `recorded payment of ₹${data.amount} for project "${project.name}"`,
       'PROJECT',
       projectId
     );
 
     res.status(201).json({ success: true, payment });
   } catch (error) {
-    res.status(400).json({ success: false, message: 'Failed to record payment', error });
+    if (error instanceof Error) {
+      if (error.message === 'PROJECT_NOT_FOUND' || error.message === 'MILESTONE_NOT_FOUND') {
+        res.status(404).json({ success: false, message: error.message === 'PROJECT_NOT_FOUND' ? 'Project not found' : 'Milestone not found for this project' });
+        return;
+      }
+      if (error.message === 'DUPLICATE_TRANSACTION') {
+        res.status(400).json({ success: false, message: 'Duplicate transaction ID detected' });
+        return;
+      }
+    }
+    res.status(400).json({ success: false, message: 'Failed to record payment' });
   }
 };
 
@@ -244,7 +267,7 @@ export const getFinancialAnalytics = async (req: Request, res: Response) => {
 
 export const finalizeProjectFinance = async (req: Request, res: Response) => {
   try {
-    const projectId = req.params.id as string;
+    const projectId = String(req.params.id);
     const project = await prisma.project.findUnique({
       where: { id: projectId },
       include: { milestones: true }
@@ -275,7 +298,7 @@ export const finalizeProjectFinance = async (req: Request, res: Response) => {
 
 export const updateMilestone = async (req: Request, res: Response) => {
   try {
-    const id = req.params.milestoneId as string;
+    const id = String(req.params.milestoneId);
     const schema = z.object({
       title: z.string().optional(),
       amount: z.number().positive().optional(),
@@ -289,16 +312,40 @@ export const updateMilestone = async (req: Request, res: Response) => {
     const data = schema.parse(req.body);
     const userId = (req as any).user.id;
 
-    const milestone = await (prisma.projectMilestone as any).update({
-      where: { id: id as string },
-      data: {
-        ...data,
-        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-        releaseDate: data.releaseDate === null ? null : data.releaseDate ? new Date(data.releaseDate) : undefined,
-        completedAt: data.completedAt === null ? null : data.completedAt ? new Date(data.completedAt) : undefined
-      },
+    const currentProject = await prisma.projectMilestone.findUnique({
+      where: { id },
+      select: { project: { select: { id: true } } }
+    });
+    if (!currentProject || !(await canManageProjectFinance(currentProject.project.id, (req as any).user))) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to update this milestone' });
+    }
+
+    // If marking as PAID, fetch current milestone to set paidAmount = amount
+    let updateData: any = {
+      ...data,
+      dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+      releaseDate: data.releaseDate === null ? null : data.releaseDate ? new Date(data.releaseDate) : undefined,
+      completedAt: data.completedAt === null ? null : data.completedAt ? new Date(data.completedAt) : undefined
+    };
+
+    if (data.status === 'PAID') {
+      const current = await prisma.projectMilestone.findUnique({ where: { id }, select: { amount: true, completedAt: true } });
+      if (current) {
+        updateData.paidAmount = current.amount;
+        if (!data.completedAt) {
+          updateData.completedAt = current.completedAt || new Date();
+        }
+      }
+    }
+
+    const milestone = await prisma.projectMilestone.update({
+      where: { id },
+      data: updateData,
       include: { project: { select: { name: true } } }
     });
+
+    // Sync project finance totals after milestone status change
+    await updateProjectTotals(prisma, milestone.projectId);
 
     await logActivity(
       userId,
@@ -310,27 +357,35 @@ export const updateMilestone = async (req: Request, res: Response) => {
 
     res.json({ success: true, milestone });
   } catch (error) {
-    res.status(400).json({ success: false, message: 'Update failed', error });
+    res.status(400).json({ success: false, message: 'Update failed' });
   }
 };
 
 export const deleteMilestone = async (req: Request, res: Response) => {
   try {
-    const id = req.params.milestoneId as string;
+    const id = String(req.params.milestoneId);
     const userId = (req as any).user.id;
 
     const milestone = await prisma.projectMilestone.findUnique({
       where: { id },
-      include: { project: { select: { name: true } }, payments: true }
+      include: { project: { select: { name: true, managerId: true } }, payments: true }
     });
 
     if (!milestone) return res.status(404).json({ success: false, message: 'Milestone not found' });
 
-    if (milestone.payments.length > 0) {
+    const user = (req as any).user;
+    if (user.role === 'PROJECT_MANAGER' && milestone.project.managerId !== user.id) {
+      return res.status(403).json({ success: false, message: 'Only the project manager can delete this milestone' });
+    }
+
+    if (milestone.payments.length > 0 || milestone.paidAmount > 0) {
       return res.status(400).json({ success: false, message: 'Cannot delete milestone with recorded payments. Remove payments first.' });
     }
 
     await prisma.projectMilestone.delete({ where: { id } });
+
+    // Recalculate project finance totals after deletion
+    await updateProjectTotals(prisma, milestone.projectId);
 
     await logActivity(
       userId,
@@ -342,7 +397,7 @@ export const deleteMilestone = async (req: Request, res: Response) => {
 
     res.json({ success: true, message: 'Milestone deleted' });
   } catch (error) {
-    res.status(400).json({ success: false, message: 'Delete failed', error });
+    res.status(400).json({ success: false, message: 'Delete failed' });
   }
 };
 

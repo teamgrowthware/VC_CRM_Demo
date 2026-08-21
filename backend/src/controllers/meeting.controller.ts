@@ -19,7 +19,7 @@ export const getAllMeetings = async (req: Request, res: Response) => {
     });
     res.json(meetings);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching meetings', error });
+    res.status(500).json({ message: 'Error fetching meetings' });
   }
 };
 
@@ -44,7 +44,7 @@ export const createMeeting = async (req: Request, res: Response) => {
     });
     res.status(201).json(meeting);
   } catch (error) {
-    res.status(500).json({ message: 'Error creating meeting', error });
+    res.status(500).json({ message: 'Error creating meeting' });
   }
 };
 
@@ -101,6 +101,6 @@ export const getCalendarEvents = async (req: Request, res: Response) => {
 
     res.json(events);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching calendar events', error });
+    res.status(500).json({ message: 'Error fetching calendar events' });
   }
 };

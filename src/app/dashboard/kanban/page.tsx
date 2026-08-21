@@ -157,7 +157,7 @@ export default function KanbanPage() {
       setRunningTimer(null);
       setElapsedTime(0);
       toast.success('Timer stopped');
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       console.error(e);
       setRunningTimer(null);
       setElapsedTime(0);
@@ -296,7 +296,7 @@ export default function KanbanPage() {
       setNewTaskTitle('');
       setAddingInColumn(null);
       fetchTasks();
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       toast.error(e.response?.data?.error || 'Failed to create task');
     } finally {
       setIsCreating(false);

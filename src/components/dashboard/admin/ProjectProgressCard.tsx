@@ -2,6 +2,7 @@ import React from 'react';
 import { Project } from '@/types/project';
 import Link from 'next/link';
 import { ChevronRight, Calendar, AlertCircle } from 'lucide-react';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface ProjectProgressCardProps {
   projects: Project[];
@@ -71,9 +72,8 @@ export default function ProjectProgressCard({ projects, loading }: ProjectProgre
                         <div
                           key={m.id}
                           title={m.employee?.name}
-                          className="inline-flex h-6 w-6 items-center justify-center rounded-full ring-2 ring-white dark:ring-[#111] bg-blue-100 dark:bg-blue-900 text-[10px] font-bold text-blue-700 dark:text-blue-300"
                         >
-                          {(m.employee?.name || '?').charAt(0).toUpperCase()}
+                          <UserAvatar name={m.employee?.name || '?'} avatarUrl={(m.employee as any)?.avatarUrl} size="xs" />
                         </div>
                       ))
                     ) : (

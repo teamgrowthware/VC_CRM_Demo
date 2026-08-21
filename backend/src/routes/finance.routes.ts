@@ -36,19 +36,19 @@ router.patch('/payroll/:id/pay', authorizeRoles('ADMIN'), upload.single('payment
 
 router.post('/deductions', addDeduction);
 router.get('/deductions', getSalaryDeductions);
-router.delete('/deductions/:id', deleteSalaryDeduction);
+router.delete('/deductions/:id', authorizeRoles('ADMIN'), deleteSalaryDeduction);
 
 router.post('/addons', addAddon);
 router.get('/addons', getSalaryAddons);
-router.delete('/addons/:id', deleteSalaryAddon);
+router.delete('/addons/:id', authorizeRoles('ADMIN'), deleteSalaryAddon);
 
 router.get('/expenses', getExpenses);
 router.post('/expenses', addExpense);
-router.delete('/expenses/:id', deleteExpense);
+router.delete('/expenses/:id', authorizeRoles('ADMIN'), deleteExpense);
 
 router.get('/petty-cash', getPettyCash);
 router.post('/petty-cash', addPettyCash);
-router.delete('/petty-cash/:id', deletePettyCash);
+router.delete('/petty-cash/:id', authorizeRoles('ADMIN'), deletePettyCash);
 
 router.post('/verify-pin', verifyFinancePin);
 router.patch('/pin', authorizeRoles('ADMIN'), updateFinancePin);

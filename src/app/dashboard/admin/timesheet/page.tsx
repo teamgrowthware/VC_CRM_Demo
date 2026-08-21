@@ -16,8 +16,8 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { formatDurationDetailed } from '@/lib/utils';
 import EditWorkLogModal from '@/components/timesheet/EditWorkLogModal';
+import UserAvatar from '@/components/ui/UserAvatar';
 import { utils, writeFile } from 'xlsx';
 
 const PROJECT_COLORS = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-indigo-500', 'bg-lime-500'];
@@ -58,9 +58,11 @@ export default function AdminTimesheetPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      const startDate = new Date(year, month - 1, 1).toISOString();
+      const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
       const [overviewData, entriesData] = await Promise.all([
         getAdminTimesheetOverview(month, year).catch(() => null),
-        getAdminTimesheetEntries().catch(() => [])
+        getAdminTimesheetEntries({ startDate, endDate }).catch(() => [])
       ]);
       setOverview(overviewData);
       setEntries(entriesData || []);
@@ -175,7 +177,7 @@ export default function AdminTimesheetPage() {
       await deleteTimeEntry(entry.id);
       toast.success('Work log deleted');
       fetchData();
-    } catch (error: any) {
+    } catch (thrown) { const error = thrown as ApiError;
       toast.error(error.response?.data?.message || 'Failed to delete entry');
     }
   };
@@ -366,9 +368,7 @@ export default function AdminTimesheetPage() {
                       return (
                         <div key={entry.id} className="flex items-start gap-4 px-5 py-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors">
                           <div className="flex items-center gap-3 w-56 shrink-0">
-                            <div className="w-9 h-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-xs text-zinc-600 dark:text-zinc-300">
-                              {entry.employee?.name?.charAt(0) || '?'}
-                            </div>
+                            <UserAvatar name={entry.employee?.name || '?'} avatarUrl={(entry.employee as any)?.avatarUrl} size="sm" />
                             <div className="min-w-0">
                               <p className="text-sm font-semibold truncate">{entry.employee?.name || 'Unknown'}</p>
                               <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">{entry.employee?.employeeId || '—'}</p>

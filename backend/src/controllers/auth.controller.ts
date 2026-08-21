@@ -3,6 +3,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { z } from 'zod';
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
 
 import { requireRefreshSecret, ADMIN_OTP_CODE, ADMIN_EMAIL } from '../lib/config';
 import { sendWelcomeEmail, sendOtpEmail } from '../services/email.service';
@@ -194,6 +197,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         name: employee.name,
         email: employee.email,
         role: employee.role,
+        avatarUrl: employee.avatarUrl || null,
       },
     });
   } catch (error) {
@@ -351,6 +355,7 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
         name: employee.name,
         email: employee.email,
         role: employee.role,
+        avatarUrl: employee.avatarUrl || null,
       },
     });
   } catch (error) {
@@ -432,7 +437,8 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
 
 const updateSelfProfileSchema = z.object({
   name: z.string().min(2, 'Name is required').optional(),
-  phone: z.string().optional().nullable(),
+  phone: z.string().regex(/^\d{10}$|^\d{12}$/, 'Phone must be 10 or 12 digits').optional().nullable(),
+  avatarUrl: z.string().optional().nullable(),
 });
 
 export const updateSelfProfile = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -563,5 +569,54 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     } else {
       res.status(500).json({ success: false, message: 'Failed to reset password' });
     }
+  }
+};
+
+const avatarUploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
+if (!fs.existsSync(avatarUploadDir)) {
+  fs.mkdirSync(avatarUploadDir, { recursive: true });
+}
+
+const avatarStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, avatarUploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `avatar-${uniqueSuffix}${ext}`);
+  },
+});
+
+export const avatarUpload = multer({
+  storage: avatarStorage,
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    cb(null, allowed.includes(file.mimetype));
+  },
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+export const uploadAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ success: false, message: 'No file uploaded' });
+      return;
+    }
+
+    const fileUrl = `/uploads/avatars/${req.file.filename}`;
+    const userId = req.user.id;
+
+    const updated = await prisma.employee.update({
+      where: { id: userId },
+      data: { avatarUrl: fileUrl },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Avatar uploaded successfully',
+      data: { avatarUrl: fileUrl },
+    });
+  } catch (error) {
+    console.error('Upload avatar error:', error);
+    res.status(500).json({ success: false, message: 'Failed to upload avatar' });
   }
 };

@@ -203,8 +203,9 @@ function MilestoneModal({ open, onClose, onSave, loading, form, setForm, isEdit,
   selectedProjectId: string;
   setSelectedProjectId: (id: string) => void;
 }) {
-  if (!open) return null;
   const [completedDate, setCompletedDate] = useState('');
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
@@ -375,7 +376,7 @@ export default function MilestonesPage() {
       }
       setModalOpen(false);
       await loadData();
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       toast.error(e.response?.data?.message || 'Failed to save');
     } finally {
       setSaving(false);
@@ -390,7 +391,7 @@ export default function MilestonesPage() {
       toast.success('Milestone marked as completed');
       setModalOpen(false);
       await loadData();
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       toast.error(e.response?.data?.message || 'Failed to complete');
     } finally {
       setCompletingId(null);
@@ -404,7 +405,7 @@ export default function MilestonesPage() {
       await deleteMilestone(id);
       toast.success('Milestone deleted');
       await loadData();
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       toast.error(e.response?.data?.message || 'Failed to delete');
     } finally {
       setDeletingId(null);

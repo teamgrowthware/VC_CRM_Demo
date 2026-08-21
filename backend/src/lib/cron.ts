@@ -15,6 +15,9 @@ export const initCronJobs = () => {
       
       const today = getShiftBounds();
 
+      // Check if today is a holiday
+      const todayHoliday = await prisma.holiday.findFirst({ where: { date: today } });
+
       // Get all active employees
       const activeEmployees = await prisma.employee.findMany({
         where: { status: 'ACTIVE' },
@@ -33,22 +36,25 @@ export const initCronJobs = () => {
       const absentEmployees = activeEmployees.filter(emp => !attendedEmployeeIds.has(emp.id));
 
       if (absentEmployees.length > 0) {
-        const isOffDay = isWeekend(today);
-        console.log(`[Cron] Found ${absentEmployees.length} absent employees. Marking as ${isOffDay ? 'WEEKEND' : 'ABSENT'}.`);
+        let status: string;
+        if (todayHoliday) {
+          status = 'HOLIDAY';
+          console.log(`[Cron] Today is a holiday (${todayHoliday.name}). Marking ${absentEmployees.length} employees as HOLIDAY.`);
+        } else {
+          const isOffDay = isWeekend(today);
+          status = isOffDay ? 'WEEKEND' : 'ABSENT';
+          console.log(`[Cron] Found ${absentEmployees.length} absent employees. Marking as ${status}.`);
+        }
         
-        // Use skipDuplicates: true to avoid errors if some records were manually created
-        await Promise.all(absentEmployees.map(emp => 
-          prisma.attendance.upsert({
-            where: { employeeId_date: { employeeId: emp.id, date: today } },
-            update: {}, // Don't overwrite if exists
-            create: {
-              employeeId: emp.id,
-              date: today,
-              status: isOffDay ? 'WEEKEND' : 'ABSENT',
-              totalHours: 0
-            }
-          })
-        ));
+        await prisma.attendance.createMany({
+          data: absentEmployees.map(emp => ({
+            employeeId: emp.id,
+            date: today,
+            status: status as any,
+            totalHours: 0
+          })),
+          skipDuplicates: true,
+        });
       }
 
       console.log('[Cron] Daily attendance check completed.');
@@ -151,13 +157,16 @@ export const initCronJobs = () => {
         select: { employeeId: true, totalHours: true }
       });
 
-      for (const record of attendance) {
-        const trackedMinutes = await prisma.timeEntry.aggregate({
-          where: { employeeId: record.employeeId, date: today, status: 'APPROVED' },
-          _sum: { durationMinutes: true }
-        });
+      const trackedMinutes = await prisma.timeEntry.groupBy({
+        by: ['employeeId'],
+        where: { date: today, status: 'APPROVED', employeeId: { in: attendance.map(record => record.employeeId) } },
+        _sum: { durationMinutes: true }
+      });
+      const trackedByEmployee = new Map(trackedMinutes.map(entry => [entry.employeeId, entry._sum.durationMinutes || 0]));
 
-        const trackedHours = (trackedMinutes._sum.durationMinutes || 0) / 60;
+      for (const record of attendance) {
+
+        const trackedHours = (trackedByEmployee.get(record.employeeId) || 0) / 60;
         const attendanceHours = record.totalHours || 0;
         const ratio = attendanceHours > 0 ? trackedHours / attendanceHours : 0;
 

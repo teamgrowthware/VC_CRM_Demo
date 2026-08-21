@@ -11,7 +11,8 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export const JWT_SECRET = process.env.JWT_SECRET;
-export const REFRESH_SECRET = process.env.REFRESH_SECRET || process.env.JWT_SECRET;
+// Refresh tokens must use a dedicated secret.
+export const REFRESH_SECRET = process.env.REFRESH_SECRET;
 export const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || '1h';
 export const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || '7d';
 export const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -23,6 +24,9 @@ export const DATABASE_URL = process.env.DATABASE_URL;
 
 if (!JWT_SECRET) {
   console.warn('[CONFIG] WARNING: JWT_SECRET is not set. Authentication will fail.');
+}
+if (!REFRESH_SECRET) {
+  console.warn('[CONFIG] WARNING: REFRESH_SECRET is not set. Refresh-token operations will fail.');
 }
 if (!ADMIN_EMAIL) {
   console.warn('[CONFIG] WARNING: ADMIN_EMAIL is not set. Password reset will not work.');

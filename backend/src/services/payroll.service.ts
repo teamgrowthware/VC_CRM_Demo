@@ -104,7 +104,7 @@ export async function calculateEmployeePayroll(
   });
 
   const presentDays = attendance.filter(
-    a => a.status === 'PRESENT' || a.status === 'WEEKEND' || a.status === 'WEEKEND_WORK'
+    a => a.status === 'PRESENT' || a.status === 'WEEKEND' || a.status === 'WEEKEND_WORK' || a.status === 'HOLIDAY' || a.status === 'HOLIDAY_WORK'
   ).length;
   const absentRecords = attendance.filter(a => a.status === 'ABSENT');
   const halfDayRecords = attendance.filter(a => a.status === 'HALFDAY');

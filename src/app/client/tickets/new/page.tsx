@@ -52,7 +52,7 @@ export default function NewTicketPage() {
       });
       toast.success('Ticket created successfully');
       router.push('/client/tickets');
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       toast.error(e.response?.data?.message || 'Failed to create ticket');
     } finally {
       setSubmitting(false);

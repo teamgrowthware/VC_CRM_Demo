@@ -159,7 +159,7 @@ export default function ProjectsPage() {
   }, []);
 
   return (
-    <RoleGuard allowedRoles={['ADMIN', 'MANAGER', 'PROJECT_MANAGER']}>
+    <RoleGuard allowedRoles={['ADMIN', 'MANAGER', 'PROJECT_MANAGER', 'EMPLOYEE']}>
     <div className="flex flex-col min-h-full gap-6">
       <div className="flex justify-between items-end">
         <div>

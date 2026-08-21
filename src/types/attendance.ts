@@ -1,4 +1,4 @@
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALFDAY' | 'LATE' | 'WEEKEND' | 'WEEKEND_WORK';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALFDAY' | 'LATE' | 'WEEKEND' | 'WEEKEND_WORK' | 'HOLIDAY' | 'HOLIDAY_WORK';
 
 export interface Attendance {
   id: string;
@@ -23,7 +23,17 @@ export interface Attendance {
   status: AttendanceStatus;
   earlyExitReason?: string;
   adminNote?: string;
-  deviceLogs?: any[];
+  deviceLogs?: Array<{
+    id: string;
+    actionType: string;
+    createdAt: string;
+    deviceType?: string;
+    os?: string;
+    browser?: string;
+    loginSource?: string;
+    ipAddress?: string;
+    deviceFingerprint?: string;
+  }>;
   createdAt: string;
 }
 

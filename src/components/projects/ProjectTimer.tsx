@@ -35,7 +35,7 @@ export const ProjectTimer = ({ projectId, tasks, onSessionComplete }: ProjectTim
       } else {
         setSession(null);
       }
-    } catch (err) {
+    } catch (thrown) { const err = thrown as ApiError;
       console.error('Failed to fetch active timer', err);
     } finally {
       setLoading(false);
@@ -82,7 +82,7 @@ export const ProjectTimer = ({ projectId, tasks, onSessionComplete }: ProjectTim
         description: 'Working on project' 
       });
       setSession(newSession);
-    } catch (err: any) {
+    } catch (thrown) { const err = thrown as ApiError;
       alert(err.response?.data?.message || 'Failed to start timer');
     } finally {
       setActionLoading(false);

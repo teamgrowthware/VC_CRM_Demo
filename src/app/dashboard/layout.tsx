@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, Layout, Users, Calendar, MessageCircle, BarChart3, Bell, ClipboardList, Folders, Clock, Settings as SettingsIcon, IndianRupee } from 'lucide-react';
+import { Menu, Layout, Users, Calendar, MessageCircle, BarChart3, ClipboardList, Folders, Clock, Settings as SettingsIcon, IndianRupee } from 'lucide-react';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import AuthProvider from '@/components/providers/AuthProvider';
 import { MobileSidebar } from '@/components/layout/MobileSidebar';
 import UserMenu from '@/components/layout/UserMenu';
+import ThemeToggle from '@/components/layout/ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { usePathname, useRouter } from 'next/navigation';
@@ -16,12 +17,20 @@ import GlobalTimerWidget from '@/components/timesheet/GlobalTimerWidget';
 import ActivityTracker from '@/components/dashboard/ActivityTracker';
 import ActivityIndicator from '@/components/dashboard/ActivityIndicator';
 import ConsentScreen from '@/components/desktop/ConsentScreen';
-import { useWebPush } from '@/hooks/useWebPush';
 import SocketProvider, { useSocket } from '@/components/providers/SocketProvider';
 
 declare global {
   interface Window {
-    electronAPI?: any;
+    electronAPI?: {
+      isDesktop?: boolean;
+      getDeviceId: () => Promise<string>;
+      getSystemStats: () => Promise<{ cpuUsage: number; ramUsage: number }>;
+      updateStatus: (status: { status: string; syncPending: number }) => Promise<void>;
+      isAutoStartEnabled: () => Promise<boolean>;
+      toggleAutoStart: (enabled: boolean) => Promise<void>;
+      onIdleStatus: (handler: (seconds: number) => void) => () => void;
+      onSystemEvent: (handler: (event: string) => void) => () => void;
+    };
   }
 }
 
@@ -77,7 +86,7 @@ function RouteGuard({ user, children }: { user: RouteGuardUser | null | undefine
   }
 
   if (!allowed) {
-    return <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>;
+    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
   }
 
   return <>{children}</>;
@@ -85,35 +94,15 @@ function RouteGuard({ user, children }: { user: RouteGuardUser | null | undefine
 
 function DashboardLayoutInner({ children, isSidebarOpen, setIsSidebarOpen }: { children: React.ReactNode, isSidebarOpen: boolean, setIsSidebarOpen: (v: boolean) => void }) {
   const { user } = useAuth();
-  const { subscribeToPush } = useWebPush();
-  const [portfolioProjects, setPortfolioProjects] = useState<any[]>([]);
+  const [portfolioProjects, setPortfolioProjects] = useState<Array<Record<string, unknown>>>([]);
   const navItems = getNavItemsForRole(user, portfolioProjects);
   const pathname = usePathname();
   const [showConsent, setShowConsent] = useState(false);
   const isDesktop = typeof window !== 'undefined' && !!window.electronAPI;
-  const [notificationPermission, setNotificationPermission] = useState<string>('default');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotificationPermission(Notification.permission);
-    }
-  }, []);
-
-  const requestNotificationPermission = async () => {
-    const success = await subscribeToPush();
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotificationPermission(Notification.permission);
-      if (Notification.permission === 'granted') {
-        toast.success('Desktop notifications enabled!');
-      } else {
-        toast.error('Notifications were denied.');
-      }
-    }
-  };
 
   useEffect(() => {
     if (isDesktop && !localStorage.getItem('desktop_consent')) {
-      setShowConsent(true);
+      queueMicrotask(() => setShowConsent(true));
     }
   }, [isDesktop]);
 
@@ -152,24 +141,6 @@ function DashboardLayoutInner({ children, isSidebarOpen, setIsSidebarOpen }: { c
           
           const audio = new Audio('/notification.mp3');
           audio.play().catch(() => {});
-
-          if (typeof window !== 'undefined' && 'Notification' in window) {
-            if (Notification.permission === 'granted') {
-              try {
-                const notification = new Notification(`New message from ${msg.sender?.name || msg.senderClient?.name || 'someone'}`, {
-                  body: msg.content?.substring(0, 50) + (msg.content?.length > 50 ? '...' : '')
-                });
-                notification.onclick = () => {
-                  window.focus();
-                  if (!isChatPage) {
-                    window.location.href = '/dashboard/chat';
-                  }
-                };
-              } catch (e) {
-                console.error("Failed to show native notification", e);
-              }
-            }
-          }
         }
       };
 
@@ -181,13 +152,13 @@ function DashboardLayoutInner({ children, isSidebarOpen, setIsSidebarOpen }: { c
     }
   }, [socket, user, pathname]);
   return (
-      <div className="flex h-screen overflow-hidden w-full bg-zinc-50 dark:bg-black font-sans text-zinc-900 dark:text-zinc-50">
+      <div className="flex h-screen overflow-hidden w-full bg-background font-sans text-foreground">
         <MobileSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
         {/* Desktop Sidebar Navigation */}
-        <aside className="w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0a0a0a] flex flex-col hidden md:flex shrink-0">
-          <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-3 shrink-0">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg shadow-lg flex items-center justify-center">
+        <aside className="w-64 border-r border-sidebar-border bg-sidebar-bg flex flex-col hidden md:flex shrink-0">
+          <div className="p-6 border-b border-sidebar-border flex items-center gap-3 shrink-0">
+            <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-lg shadow-lg shadow-indigo-500/25 flex items-center justify-center">
               <span className="text-white font-black text-sm">V</span>
             </div>
             <h2 className="text-xl font-black tracking-tighter">VORTEX</h2>
@@ -203,16 +174,16 @@ function DashboardLayoutInner({ children, isSidebarOpen, setIsSidebarOpen }: { c
                     href={item.href} 
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${
                       isActive 
-                      ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-300 dark:border-zinc-700 shadow-sm' 
-                      : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 border border-transparent'
+                      ? 'bg-sidebar-active text-foreground border border-border shadow-sm' 
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent'
                     }`}
                   >
-                    <item.icon className={`w-4 h-4 ${isActive ? 'text-indigo-600 dark:text-indigo-400' : ''}`} />
+                    <item.icon className={`w-4 h-4 ${isActive ? 'text-primary' : ''}`} />
                     {item.label}
                   </Link>
                   
                   {hasSubItems && (
-                    <div className="ml-9 flex flex-col gap-1 border-l border-zinc-200 dark:border-zinc-800 pl-3 py-1">
+                    <div className="ml-9 flex flex-col gap-1 border-l border-border pl-3 py-1">
                       {item.subItems.map((sub: any) => {
                         const isSubActive = pathname === sub.href;
                         return (
@@ -221,8 +192,8 @@ function DashboardLayoutInner({ children, isSidebarOpen, setIsSidebarOpen }: { c
                             href={sub.href}
                             className={`text-xs py-1.5 transition-colors font-medium truncate ${
                               isSubActive 
-                              ? 'text-indigo-600 dark:text-indigo-400 font-bold' 
-                              : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                              ? 'text-primary font-bold' 
+                              : 'text-muted-foreground hover:text-foreground'
                             }`}
                           >
                             {sub.label}
@@ -236,11 +207,11 @@ function DashboardLayoutInner({ children, isSidebarOpen, setIsSidebarOpen }: { c
             })}
           </nav>
           
-          <div className="p-6 border-t border-zinc-200 dark:border-zinc-800">
-             <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800/50">
-                <p className="text-[10px] uppercase font-black tracking-widest text-zinc-400">Security Index</p>
-                <div className="mt-2 h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-                   <div className="h-full w-4/5 bg-emerald-500" />
+          <div className="p-6 border-t border-sidebar-border">
+             <div className="p-4 rounded-xl bg-muted border border-border">
+                <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Security Index</p>
+                <div className="mt-2 h-1.5 w-full bg-border rounded-full overflow-hidden">
+                   <div className="h-full w-4/5 bg-success" />
                 </div>
              </div>
           </div>
@@ -248,34 +219,26 @@ function DashboardLayoutInner({ children, isSidebarOpen, setIsSidebarOpen }: { c
 
         {/* Main Content Area */}
         <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-          <header className="h-16 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl flex items-center px-4 md:px-8 justify-between sticky top-0 z-30">
+          <header className="h-16 border-b border-border bg-header-bg backdrop-blur-xl flex items-center px-4 md:px-8 justify-between sticky top-0 z-30">
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => setIsSidebarOpen(true)}
-                className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl md:hidden transition-colors"
+                className="p-2 hover:bg-muted rounded-xl md:hidden transition-colors"
                 aria-label="Toggle Menu"
               >
-                <Menu className="w-6 h-6 text-zinc-600" />
+                <Menu className="w-6 h-6 text-muted-foreground" />
               </button>
-              <h1 className="text-md font-black uppercase tracking-widest text-zinc-400 hidden sm:block">Command Center</h1>
+              <h1 className="text-md font-black uppercase tracking-widest text-muted-foreground hidden sm:block">Command Center</h1>
             </div>
             
-            <div className="flex items-center gap-4">
-              {notificationPermission === 'default' && (
-                <button 
-                  onClick={requestNotificationPermission}
-                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-xs font-bold transition-colors border border-blue-200 dark:border-blue-800"
-                >
-                  <Bell className="w-3.5 h-3.5" />
-                  Enable Notifications
-                </button>
-              )}
+            <div className="flex items-center gap-3">
               <ActivityIndicator />
-              <div className="h-6 w-[1px] bg-zinc-200 dark:bg-zinc-800 mx-1 hidden sm:block" />
+              <div className="h-6 w-[1px] bg-border mx-1 hidden sm:block" />
               <GlobalTimerWidget />
-              <div className="h-6 w-[1px] bg-zinc-200 dark:bg-zinc-800 mx-1 hidden sm:block" />
+              <div className="h-6 w-[1px] bg-border mx-1 hidden sm:block" />
               <NotificationBell />
-              <div className="ml-2">
+              <ThemeToggle />
+              <div className="ml-1">
                 <UserMenu />
               </div>
             </div>

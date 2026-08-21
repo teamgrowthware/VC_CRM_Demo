@@ -5,19 +5,20 @@ import { X, Search, Loader2, MessageSquarePlus, Plus } from 'lucide-react';
 import { Employee } from '@/types/employee';
 import { createChatRoom, ChatRoom } from '@/lib/api/chat';
 import { toast } from 'sonner';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface NewChatModalProps {
   isOpen: boolean;
   onClose: () => void;
   employees: Employee[];
-  clients?: any[];
+  clients: any[];
   currentUserEmail?: string;
   onRoomCreated: (room: ChatRoom) => void;
 }
 
-export default function NewChatModal({ isOpen, onClose, employees, clients = [], currentUserEmail, onRoomCreated }: NewChatModalProps) {
+export default function NewChatModal({ isOpen, onClose, employees, clients, currentUserEmail, onRoomCreated }: NewChatModalProps) {
   const [mode, setMode] = useState<'DIRECT' | 'GROUP'>('DIRECT');
-  const [targetTab, setTargetTab] = useState<'TEAM' | 'CLIENTS'>('TEAM');
+  const [targetType, setTargetType] = useState<'TEAM' | 'CLIENTS'>('TEAM');
   const [searchTerm, setSearchTerm] = useState('');
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
@@ -30,14 +31,15 @@ export default function NewChatModal({ isOpen, onClose, employees, clients = [],
      emp.email.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const filteredClients = clients.filter(client => 
-    client.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredClients = (clients || []).filter(client =>
+    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (client.company && client.company.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleStartChat = async (employeeId: string) => {
+  const handleStartChat = async (userId: string, isClient: boolean) => {
     try {
       setLoading(true);
-      const res = await createChatRoom(null, 'PERSONAL', [employeeId]);
+      const res = await createChatRoom(null, 'PERSONAL', isClient ? [] : [userId], undefined, undefined, isClient ? userId : undefined);
       onRoomCreated(res.chatRoom);
       onClose();
     } catch (error) {
@@ -89,7 +91,7 @@ export default function NewChatModal({ isOpen, onClose, employees, clients = [],
           </button>
         </div>
 
-        <div className="flex bg-zinc-100 dark:bg-zinc-800/50 p-1 m-4 mb-2 rounded-xl">
+        <div className="flex bg-zinc-100 dark:bg-zinc-800/50 p-1 m-4 mb-0 rounded-xl">
           <button
             onClick={() => { setMode('DIRECT'); setSelectedMembers([]); }}
             className={`flex-1 py-1.5 text-sm font-semibold rounded-lg transition-all ${mode === 'DIRECT' ? 'bg-white dark:bg-[#111] text-blue-600 shadow-sm' : 'text-zinc-500'}`}
@@ -104,16 +106,16 @@ export default function NewChatModal({ isOpen, onClose, employees, clients = [],
           </button>
         </div>
 
-        <div className="flex border-b border-zinc-200 dark:border-zinc-800 px-4 gap-4">
+        <div className="flex bg-zinc-100 dark:bg-zinc-800/50 p-1 mx-4 mt-2 rounded-xl">
           <button
-            onClick={() => setTargetTab('TEAM')}
-            className={`pb-2 text-sm font-bold transition-all border-b-2 ${targetTab === 'TEAM' ? 'border-blue-600 text-blue-600' : 'border-transparent text-zinc-500'}`}
+            onClick={() => { setTargetType('TEAM'); setSelectedMembers([]); }}
+            className={`flex-1 py-1 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${targetType === 'TEAM' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
           >
             Team Members
           </button>
           <button
-            onClick={() => setTargetTab('CLIENTS')}
-            className={`pb-2 text-sm font-bold transition-all border-b-2 ${targetTab === 'CLIENTS' ? 'border-blue-600 text-blue-600' : 'border-transparent text-zinc-500'}`}
+            onClick={() => { setTargetType('CLIENTS'); setSelectedMembers([]); }}
+            className={`flex-1 py-1 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${targetType === 'CLIENTS' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
           >
             Clients
           </button>
@@ -151,59 +153,53 @@ export default function NewChatModal({ isOpen, onClose, employees, clients = [],
           </div>
 
           <div className="max-h-72 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-            {targetTab === 'TEAM' ? (
-              filteredEmployees.map(emp => (
-                <button
-                  key={emp.id}
-                  onClick={() => mode === 'DIRECT' ? handleStartChat(emp.id) : toggleMember(emp.id)}
-                  disabled={mode === 'DIRECT' && loading}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all group border ${mode === 'GROUP' && selectedMembers.includes(emp.id) ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50' : 'border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-100 dark:hover:border-zinc-800'}`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-sm shadow-sm">
-                    {emp.name.charAt(0)}
+            {targetType === 'TEAM' ? filteredEmployees.map(emp => (
+              <button
+                key={emp.id}
+                onClick={() => mode === 'DIRECT' ? handleStartChat(emp.id, false) : toggleMember(emp.id)}
+                disabled={mode === 'DIRECT' && loading}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all group border ${mode === 'GROUP' && selectedMembers.includes(emp.id) ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50' : 'border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-100 dark:hover:border-zinc-800'}`}
+              >
+                <UserAvatar name={emp.name} avatarUrl={(emp as { avatarUrl?: string }).avatarUrl} size="md" />
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{emp.name}</p>
+                  <p className="text-[10px] text-zinc-500 font-medium truncate uppercase tracking-wider">{emp.designation}</p>
+                </div>
+                {mode === 'DIRECT' ? (
+                  loading ? <Loader2 className="w-4 h-4 animate-spin text-zinc-400" /> : <Plus className="w-4 h-4 text-zinc-400 group-hover:text-blue-500 transition-colors" />
+                ) : (
+                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${selectedMembers.includes(emp.id) ? 'bg-blue-500 border-blue-500 text-white' : 'border-zinc-300 dark:border-zinc-600'}`}>
+                    {selectedMembers.includes(emp.id) && <X className="w-3 h-3 rotate-45" />}
                   </div>
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{emp.name}</p>
-                    <p className="text-[10px] text-zinc-500 font-medium truncate uppercase tracking-wider">{emp.designation}</p>
+                )}
+              </button>
+            )) : filteredClients.map(client => (
+              <button
+                key={client.id}
+                onClick={() => mode === 'DIRECT' ? handleStartChat(client.id, true) : toggleMember(client.id)}
+                disabled={mode === 'DIRECT' && loading}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all group border ${mode === 'GROUP' && selectedMembers.includes(client.id) ? 'bg-emerald-50/50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50' : 'border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-100 dark:hover:border-zinc-800'}`}
+              >
+                <UserAvatar name={client.name} size="md" />
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate flex items-center gap-2">
+                     {client.name}
+                     <span className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-100 text-emerald-700 font-bold uppercase">Client</span>
+                  </p>
+                  <p className="text-[10px] text-zinc-500 font-medium truncate uppercase tracking-wider">{client.company || 'External'}</p>
+                </div>
+                {mode === 'DIRECT' ? (
+                  loading ? <Loader2 className="w-4 h-4 animate-spin text-zinc-400" /> : <Plus className="w-4 h-4 text-zinc-400 group-hover:text-emerald-500 transition-colors" />
+                ) : (
+                  <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${selectedMembers.includes(client.id) ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-600'}`}>
+                    {selectedMembers.includes(client.id) && <X className="w-3 h-3 rotate-45" />}
                   </div>
-                  {mode === 'DIRECT' ? (
-                    loading ? <Loader2 className="w-4 h-4 animate-spin text-zinc-400" /> : <Plus className="w-4 h-4 text-zinc-400 group-hover:text-blue-500 transition-colors" />
-                  ) : (
-                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${selectedMembers.includes(emp.id) ? 'bg-blue-500 border-blue-500 text-white' : 'border-zinc-300 dark:border-zinc-600'}`}>
-                      {selectedMembers.includes(emp.id) && <X className="w-3 h-3 rotate-45" />}
-                    </div>
-                  )}
-                </button>
-              ))
-            ) : (
-              filteredClients.map(client => (
-                <button
-                  key={client.id}
-                  onClick={() => mode === 'DIRECT' ? handleStartChat(client.id) : toggleMember(client.id)}
-                  disabled={mode === 'DIRECT' && loading}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all group border ${mode === 'GROUP' && selectedMembers.includes(client.id) ? 'bg-amber-50/50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/50' : 'border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-100 dark:hover:border-zinc-800'}`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-sm shadow-sm">
-                    {client.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 text-left min-w-0 flex items-center gap-2">
-                    <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{client.name}</p>
-                    <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider">CLIENT</span>
-                  </div>
-                  {mode === 'DIRECT' ? (
-                    loading ? <Loader2 className="w-4 h-4 animate-spin text-zinc-400" /> : <Plus className="w-4 h-4 text-zinc-400 group-hover:text-blue-500 transition-colors" />
-                  ) : (
-                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${selectedMembers.includes(client.id) ? 'bg-amber-500 border-amber-500 text-white' : 'border-zinc-300 dark:border-zinc-600'}`}>
-                      {selectedMembers.includes(client.id) && <X className="w-3 h-3 rotate-45" />}
-                    </div>
-                  )}
-                </button>
-              ))
-            )}
-            
-            {((targetTab === 'TEAM' && filteredEmployees.length === 0) || (targetTab === 'CLIENTS' && filteredClients.length === 0)) && (
+                )}
+              </button>
+            ))}
+            {((targetType === 'TEAM' && filteredEmployees.length === 0) || (targetType === 'CLIENTS' && filteredClients.length === 0)) && (
               <div className="text-center py-8 text-zinc-500 bg-zinc-50 dark:bg-black/20 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
-                <p className="text-sm font-medium">No results found</p>
+                <p className="text-sm font-medium">No {targetType.toLowerCase()} found</p>
               </div>
             )}
           </div>

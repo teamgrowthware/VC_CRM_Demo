@@ -6,6 +6,7 @@ import { X, User, Shield, Clock, Camera, Save, Loader2, Key, Eye, EyeOff } from 
 import { toast } from 'sonner';
 
 import apiClient from '@/lib/api/apiClient';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -19,9 +20,10 @@ interface StoredUser {
   email: string;
   phone?: string | null;
   role: string;
+  avatarUrl?: string | null;
 }
 
-const getApiErrorMessage = (err: unknown, fallback: string) => {
+const getApiErrorMessage = (err: any, fallback: string) => {
   const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
   return data?.error || data?.message || fallback;
 };
@@ -128,9 +130,7 @@ export const ProfileModal = ({ isOpen, onClose }: ProfileModalProps) => {
         <div className="w-full md:w-72 bg-zinc-50/50 dark:bg-zinc-900/30 border-r border-zinc-100 dark:border-zinc-800 p-8 flex flex-col gap-2 shrink-0">
            <div className="mb-10 flex flex-col items-center">
               <div className="relative group mb-6">
-                <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white text-4xl font-black shadow-2xl ring-[6px] ring-white dark:ring-zinc-900 transition-transform group-hover:rotate-6">
-                   {userData?.name?.charAt(0).toUpperCase()}
-                </div>
+                <UserAvatar name={userData?.name || ''} avatarUrl={userData?.avatarUrl} size="xl" className="bg-gradient from-indigo-600" />
                 <button className="absolute bottom-1 right-1 p-2.5 bg-white dark:bg-zinc-800 rounded-full shadow-lg border border-zinc-100 dark:border-zinc-700 hover:scale-110 transition-transform">
                    <Camera className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
                 </button>

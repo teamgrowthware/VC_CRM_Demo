@@ -447,6 +447,10 @@ export const getUserActivity = async (req: AuthRequest, res: Response): Promise<
   try {
     const { userId } = req.params;
     const targetId = userId === 'me' ? (req.user?.id as string) : (userId as string);
+    if (req.user?.role === 'EMPLOYEE' && targetId !== req.user.id) {
+      res.status(403).json({ message: 'Unauthorized to view this activity' });
+      return;
+    }
 
     const logs = await prisma.activityLog.findMany({
       where: { userId: targetId },
@@ -472,12 +476,15 @@ export const reportSystemEvent = async (req: AuthRequest, res: Response) => {
 
     const { deviceId, eventType, timestamp } = req.body;
 
-    // Ensure device is registered
-    const device = await prisma.deviceRegistration.upsert({
-      where: { deviceId },
-      update: { lastSeenAt: new Date(), userId },
-      create: { deviceId, userId, deviceName: 'Desktop Agent' }
-    });
+    const registeredDevice = await prisma.deviceRegistration.findUnique({ where: { deviceId } });
+    if (registeredDevice && (registeredDevice.userId !== userId || registeredDevice.isRevoked)) {
+      return res.status(403).json({ message: 'Device not registered or revoked' });
+    }
+    if (registeredDevice) {
+      await prisma.deviceRegistration.update({ where: { deviceId }, data: { lastSeenAt: new Date() } });
+    } else {
+      await prisma.deviceRegistration.create({ data: { deviceId, userId, deviceName: 'Desktop Agent' } });
+    }
 
     const event = await prisma.systemEventLog.create({
       data: {

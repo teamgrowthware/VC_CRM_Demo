@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useRouter, usePathname } from 'next/navigation';
-import apiClient from '@/lib/api/apiClient';
+import apiClient, { clearAuthStorage } from '@/lib/api/apiClient';
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -15,8 +15,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const interceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-          localStorage.removeItem('user');
+        if (error.response?.status === 401) {
+          clearAuthStorage();
           if (!pathname.startsWith('/login')) {
             router.push('/login');
           }
@@ -25,30 +25,26 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       }
     );
 
+    // Validate the session against the backend using the httpOnly cookie.
     const checkAuth = async () => {
-      if (pathname.startsWith('/login') || pathname.startsWith('/client/login')) {
-        setIsReady(true);
-        return;
-      }
-      const existing = localStorage.getItem('user');
-      if (!existing) {
-        if (!pathname.startsWith('/login')) {
-          router.push('/login');
-        }
+      if (pathname.startsWith('/login')) {
         setIsReady(true);
         return;
       }
       try {
-        const parsed = JSON.parse(existing);
-        if (!parsed || !parsed.role) {
-          localStorage.removeItem('user');
-          router.push('/login');
+        const { data } = await apiClient.get('/auth/me');
+        if (data.employee) {
+          localStorage.setItem('user', JSON.stringify(data.employee));
         }
-      } catch {
-        localStorage.removeItem('user');
-        router.push('/login');
+        setIsReady(true);
+      } catch (thrown) { const err = thrown as ApiError;
+        if (err.response?.status === 401) {
+          clearAuthStorage();
+          router.push('/login');
+        } else {
+          setIsReady(true);
+        }
       }
-      setIsReady(true);
     };
 
     checkAuth();

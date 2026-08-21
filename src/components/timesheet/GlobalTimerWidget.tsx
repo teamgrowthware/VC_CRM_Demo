@@ -28,7 +28,7 @@ export default function GlobalTimerWidget() {
   };
 
   useEffect(() => {
-    fetchActiveTimer();
+    queueMicrotask(fetchActiveTimer);
     // Refresh every 30 seconds to sync with server
     const syncInterval = setInterval(fetchActiveTimer, 30000);
     return () => clearInterval(syncInterval);
@@ -51,9 +51,9 @@ export default function GlobalTimerWidget() {
         const start = new Date(timer.startTime).getTime();
         const pause = new Date(timer.lastPausedAt).getTime();
         const totalPausedMs = (timer.totalPausedSeconds || 0) * 1000;
-        setElapsed(Math.max(0, pause - start - totalPausedMs));
+        queueMicrotask(() => setElapsed(Math.max(0, pause - start - totalPausedMs)));
       } else {
-        setElapsed(0);
+        queueMicrotask(() => setElapsed(0));
       }
     }
 
@@ -162,5 +162,3 @@ export default function GlobalTimerWidget() {
     </>
   );
 }
-
-// Add formatDuration to lib/utils.ts if it doesn't exist

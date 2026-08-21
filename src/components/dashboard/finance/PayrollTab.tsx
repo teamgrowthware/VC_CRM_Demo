@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Users, 
   Search, 
@@ -14,12 +14,15 @@ import {
   Banknote,
   Smartphone,
   Eye,
-  X
+  X,
+  Image as ImageIcon,
+  FileCheck
 } from 'lucide-react';
 import { getPayrollRecords, generatePayroll, paySalary } from '@/lib/api/finance';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 export default function PayrollTab({ month, year }: { month: number, year: number }) {
   const { user } = useAuth();
@@ -30,7 +33,11 @@ export default function PayrollTab({ month, year }: { month: number, year: numbe
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentModal, setPaymentModal] = useState<{ open: boolean, payrollId: string | null }>({ open: false, payrollId: null });
   const [paymentMode, setPaymentMode] = useState('BANK_TRANSFER');
+  const [paymentProof, setPaymentProof] = useState<File | null>(null);
+  const [paymentPreview, setPaymentPreview] = useState<string | null>(null);
   const [viewModal, setViewModal] = useState<any | null>(null);
+  const [proofModal, setProofModal] = useState<any | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchPayrolls();
@@ -94,13 +101,37 @@ export default function PayrollTab({ month, year }: { month: number, year: numbe
   const handleMarkAsPaid = async () => {
     if (!paymentModal.payrollId) return;
     try {
-      await paySalary(paymentModal.payrollId, { paymentMode, paymentDate: new Date().toISOString() });
+      await paySalary(paymentModal.payrollId, {
+        paymentMode,
+        paymentDate: new Date().toISOString(),
+        paymentProof: paymentProof || undefined,
+      });
       toast.success('Salary marked as paid');
       setPaymentModal({ open: false, payrollId: null });
+      setPaymentProof(null);
+      setPaymentPreview(null);
       fetchPayrolls();
     } catch (error) {
       toast.error('Failed to update payment status');
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File must be under 10MB');
+      return;
+    }
+    setPaymentProof(file);
+    const url = URL.createObjectURL(file);
+    setPaymentPreview(url);
+  };
+
+  const closePaymentModal = () => {
+    setPaymentModal({ open: false, payrollId: null });
+    setPaymentProof(null);
+    setPaymentPreview(null);
   };
 
   const filteredPayrolls = payrolls.filter(p => 
@@ -173,9 +204,7 @@ export default function PayrollTab({ month, year }: { month: number, year: numbe
                   <tr key={p.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-black text-xs">
-                          {p.employee.name.charAt(0)}
-                        </div>
+                        <UserAvatar name={p.employee.name} avatarUrl={(p.employee as any).avatarUrl} size="md" />
                         <div>
                           <p className="text-sm font-black">{p.employee.name}</p>
                           <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter">
@@ -224,9 +253,20 @@ export default function PayrollTab({ month, year }: { month: number, year: numbe
                     </td>
                     <td className="px-6 py-4 text-right">
                       {p.status === 'PAID' ? (
-                        <div className="text-[10px] text-zinc-400 font-bold">
-                           {p.paymentMode}<br/>
-                           {p.paymentDate && format(new Date(p.paymentDate), 'dd/MM/yy')}
+                        <div className="flex flex-col items-end gap-1">
+                          <div className="text-[10px] text-zinc-400 font-bold text-right">
+                             {p.paymentMode}<br/>
+                             {p.paymentDate && format(new Date(p.paymentDate), 'dd/MM/yy')}
+                          </div>
+                          {p.paymentProof && (
+                            <button
+                              onClick={() => setProofModal(p)}
+                              className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
+                            >
+                              <FileCheck className="w-3 h-3" />
+                              View Proof
+                            </button>
+                          )}
                         </div>
                       ) : isAdmin ? (
                         <button 
@@ -253,9 +293,9 @@ export default function PayrollTab({ month, year }: { month: number, year: numbe
           <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden scale-in-center">
             <div className="p-8">
               <h3 className="text-2xl font-black mb-2">Confirm Payment</h3>
-              <p className="text-zinc-500 text-sm mb-8 font-medium">Select the payment mode to mark this salary as paid.</p>
+              <p className="text-zinc-500 text-sm mb-6 font-medium">Select the payment mode and attach proof of payment.</p>
               
-              <div className="grid grid-cols-1 gap-3 mb-8">
+              <div className="grid grid-cols-1 gap-3 mb-6">
                 {[
                   { id: 'BANK_TRANSFER', label: 'Bank Transfer', icon: CreditCard },
                   { id: 'UPI', label: 'UPI / Digital', icon: Smartphone },
@@ -280,9 +320,50 @@ export default function PayrollTab({ month, year }: { month: number, year: numbe
                 ))}
               </div>
 
+              {/* Screenshot Upload */}
+              <div className="mb-6">
+                <label className="text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2 block">
+                  Payment Screenshot <span className="text-zinc-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                {paymentPreview ? (
+                  <div className="relative border-2 border-emerald-200 dark:border-emerald-800 rounded-2xl overflow-hidden bg-emerald-50/50 dark:bg-emerald-900/10">
+                    {paymentProof?.type.startsWith('image/') ? (
+                      <img src={paymentPreview} alt="Payment proof" className="w-full h-40 object-contain p-2" />
+                    ) : (
+                      <div className="flex items-center gap-3 p-4">
+                        <FileCheck className="w-8 h-8 text-emerald-600" />
+                        <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">{paymentProof?.name}</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => { setPaymentProof(null); setPaymentPreview(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                      className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded-full hover:bg-black/80 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full border-2 border-dashed border-zinc-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col items-center gap-2 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-all"
+                  >
+                    <ImageIcon className="w-8 h-8 text-zinc-300 dark:text-zinc-600" />
+                    <span className="text-sm font-medium text-zinc-400">Click to upload screenshot or receipt</span>
+                    <span className="text-[10px] text-zinc-300 dark:text-zinc-600">JPG, PNG, or PDF — Max 10MB</span>
+                  </button>
+                )}
+              </div>
+
               <div className="flex gap-3">
                 <button
-                  onClick={() => setPaymentModal({ open: false, payrollId: null })}
+                  onClick={closePaymentModal}
                   className="flex-1 px-4 py-3 font-bold border border-zinc-200 dark:border-zinc-800 rounded-2xl hover:bg-zinc-50 transition-colors"
                 >
                   Cancel
@@ -311,9 +392,7 @@ export default function PayrollTab({ month, year }: { month: number, year: numbe
             </div>
             <div className="p-6">
               <div className="flex items-center gap-3 mb-6">
-                 <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center font-black text-xs text-indigo-600">
-                   {viewModal.employee.name.charAt(0)}
-                 </div>
+                 <UserAvatar name={viewModal.employee.name} avatarUrl={(viewModal.employee as any).avatarUrl} size="lg" />
                  <div>
                    <p className="text-sm font-black">{viewModal.employee.name}</p>
                    <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter">
@@ -323,45 +402,117 @@ export default function PayrollTab({ month, year }: { month: number, year: numbe
               </div>
               
               <div className="space-y-4 font-medium text-sm">
-                {(() => {
-                  const daysInM = new Date(year, month, 0).getDate();
-                  const perDay = viewModal.baseSalary / daysInM;
-                  const absD = Math.round(viewModal.leaveDays * perDay);
-                  const halfD = Math.round(viewModal.halfDays * (perDay / 2));
-                  const penD = Math.round(viewModal.totalPenalties);
-                  const otherD = Math.max(0, Math.round(viewModal.totalDeductions) - absD - halfD - penD);
-                  
-                  return (
-                    <>
-                      <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800">
-                         <span className="text-zinc-500">Absent ({viewModal.leaveDays} Days)</span> 
-                         <span className="text-red-500 font-bold">-₹{absD.toLocaleString('en-IN')}</span>
+                {viewModal.deductions && viewModal.deductions.length > 0 ? (
+                  <>
+                    {viewModal.deductions.map((item: any, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                            item.type === 'ABSENT' ? 'bg-red-50 text-red-600' :
+                            item.type === 'HALFDAY' ? 'bg-amber-50 text-amber-600' :
+                            item.type === 'PENALTY' ? 'bg-red-50 text-red-600' :
+                            item.type === 'JOINING' ? 'bg-zinc-100 text-zinc-600' :
+                            'bg-zinc-100 text-zinc-600'
+                          }`}>
+                            {item.type === 'ABSENT' ? 'Absent' :
+                             item.type === 'HALFDAY' ? 'Half Day' :
+                             item.type === 'PENALTY' ? 'Fine' :
+                             item.type === 'JOINING' ? 'Joining' :
+                             item.type}
+                          </span>
+                          <span className="text-zinc-500">{item.label}</span>
+                          <span className="text-[10px] text-zinc-400">{new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                        </div>
+                        <span className="text-red-500 font-bold">-₹{Math.round(item.amount).toLocaleString('en-IN')}</span>
                       </div>
-                      <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800">
-                         <span className="text-zinc-500">Half Day ({viewModal.halfDays} Days)</span> 
-                         <span className="text-red-500 font-bold">-₹{halfD.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800">
-                         <span className="text-zinc-500">Penalties</span> 
-                         <span className="text-red-500 font-bold">-₹{penD.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800">
-                         <span className="text-zinc-500">Other (Loan/Advance)</span> 
-                         <span className="text-red-500 font-bold">-₹{otherD.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-2">
-                         <span className="font-black text-zinc-900 dark:text-zinc-100">Total Deductions</span> 
-                         <span className="text-red-600 font-black text-base">-₹{Math.round(viewModal.totalDeductions).toLocaleString('en-IN')}</span>
-                      </div>
-                    </>
-                  );
-                })()}
+                    ))}
+                    <div className="flex justify-between items-center pt-2">
+                       <span className="font-black text-zinc-900 dark:text-zinc-100">Total Deductions</span> 
+                       <span className="text-red-600 font-black text-base">-₹{Math.round(viewModal.totalDeductions).toLocaleString('en-IN')}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {(() => {
+                      const daysInM = new Date(year, month, 0).getDate();
+                      const perDay = viewModal.baseSalary / daysInM;
+                      const absD = Math.round(viewModal.leaveDays * perDay);
+                      const halfD = Math.round(viewModal.halfDays * (perDay / 2));
+                      const penD = Math.round(viewModal.totalPenalties);
+                      const otherD = Math.max(0, Math.round(viewModal.totalDeductions) - absD - halfD - penD);
+                      
+                      return (
+                        <>
+                          <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800">
+                             <span className="text-zinc-500">Absent ({viewModal.leaveDays} Days)</span> 
+                             <span className="text-red-500 font-bold">-₹{absD.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800">
+                             <span className="text-zinc-500">Half Day ({viewModal.halfDays} Days)</span> 
+                             <span className="text-red-500 font-bold">-₹{halfD.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800">
+                             <span className="text-zinc-500">Penalties</span> 
+                             <span className="text-red-500 font-bold">-₹{penD.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between items-center pb-3 border-b border-zinc-100 dark:border-zinc-800">
+                             <span className="text-zinc-500">Other (Loan/Advance)</span> 
+                             <span className="text-red-500 font-bold">-₹{otherD.toLocaleString('en-IN')}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2">
+                             <span className="font-black text-zinc-900 dark:text-zinc-100">Total Deductions</span> 
+                             <span className="text-red-600 font-black text-base">-₹{Math.round(viewModal.totalDeductions).toLocaleString('en-IN')}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </>
+                )}
               </div>
             </div>
             <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-100 dark:border-zinc-800">
                <button onClick={() => setViewModal(null)} className="w-full py-2.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm font-bold shadow-sm hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
                  Close
                </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Proof Modal */}
+      {proofModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden scale-in-center">
+            <div className="flex items-center justify-between p-6 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center gap-3">
+                <FileCheck className="w-5 h-5 text-emerald-600" />
+                <div>
+                  <h3 className="text-lg font-black">Payment Proof</h3>
+                  <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter">
+                    {proofModal.employee.name} — ₹{Math.round(proofModal.netSalary).toLocaleString('en-IN')}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setProofModal(null)} className="p-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-white rounded-xl transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6">
+              {proofModal.paymentProof?.endsWith('.pdf') ? (
+                <iframe src={proofModal.paymentProof} className="w-full h-96 rounded-xl border border-zinc-200 dark:border-zinc-800" />
+              ) : (
+                <img src={proofModal.paymentProof} alt="Payment proof" className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 object-contain max-h-96" />
+              )}
+              <div className="flex items-center gap-4 mt-4 text-xs text-zinc-400 font-bold">
+                <span>{proofModal.paymentMode}</span>
+                <span>•</span>
+                <span>{proofModal.paymentDate && format(new Date(proofModal.paymentDate), 'dd MMM yyyy, hh:mm a')}</span>
+              </div>
+            </div>
+            <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-100 dark:border-zinc-800">
+              <button onClick={() => setProofModal(null)} className="w-full py-2.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm font-bold shadow-sm hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
+                Close
+              </button>
             </div>
           </div>
         </div>

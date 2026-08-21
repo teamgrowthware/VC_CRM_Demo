@@ -3,7 +3,7 @@ import prisma from '../lib/prisma';
 
 export const getEmployeeProfile = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const profile = await prisma.employee.findUnique({
       where: { id },
       select: {
@@ -11,6 +11,7 @@ export const getEmployeeProfile = async (req: Request, res: Response) => {
          employeeId: true,
          name: true,
          email: true,
+         phone: true,
          role: true,
          status: true,
          joiningDate: true,
@@ -29,7 +30,7 @@ export const getEmployeeProfile = async (req: Request, res: Response) => {
 
 export const getEmployeeAttendanceStats = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     const totalWorkingDays = await prisma.attendance.count({ where: { employeeId: id } });
     const presentDays = await prisma.attendance.count({ where: { employeeId: id, status: 'PRESENT' } });
     // Getting trend for a simple chart
@@ -53,7 +54,7 @@ export const getEmployeeAttendanceStats = async (req: Request, res: Response) =>
 
 export const getEmployeeTaskStats = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     
     // Using Promise.all for internal queries can be faster, but let's be safe
     const [total, completed, pending, overdue] = await Promise.all([
@@ -88,13 +89,13 @@ export const getEmployeeTaskStats = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('getEmployeeTaskStats Error:', error);
     // If the whole thing fails, return empty stats rather than 500
-    res.json({ total: 0, completed: 0, pending: 0, overdue: 0, recentTasks: [], error: error.message });
+    res.json({ total: 0, completed: 0, pending: 0, overdue: 0, recentTasks: [], error: 'Failed to fetch employee task stats' });
   }
 };
 
 export const getEmployeeProjectStats = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     
     // Wrapped in Promise.all for efficiency
     const [projects, total, active, completed] = await Promise.all([
@@ -139,13 +140,13 @@ export const getEmployeeProjectStats = async (req: Request, res: Response) => {
     res.json({ total, active, completed, recentProjects: projects });
   } catch (error: any) {
     console.error('getEmployeeProjectStats Error:', error);
-    res.json({ total: 0, active: 0, completed: 0, recentProjects: [], error: error.message });
+    res.json({ total: 0, active: 0, completed: 0, recentProjects: [], error: 'Failed to fetch employee project stats' });
   }
 };
 
 export const getEmployeeReportStats = async (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
     
     const [reports, sodCount, eodCount, pendingEodCount] = await Promise.all([
       prisma.dailyReport.findMany({
@@ -178,6 +179,6 @@ export const getEmployeeReportStats = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('getEmployeeReportStats Error:', error);
-    res.json({ totalSOD: 0, totalEOD: 0, pendingEOD: 0, recentReports: [], error: error.message });
+    res.json({ totalSOD: 0, totalEOD: 0, pendingEOD: 0, recentReports: [], error: 'Failed to fetch employee report stats' });
   }
 };

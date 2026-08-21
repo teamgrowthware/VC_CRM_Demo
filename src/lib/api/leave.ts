@@ -14,10 +14,11 @@ export interface Leave {
   numberOfDays: number;
   reason: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  isPaid: boolean;
   createdAt: string;
 }
 
-export const applyLeave = async (data: any) => {
+export const applyLeave = async (data: Record<string, unknown>) => {
   const response = await api.post('/leaves', data);
   return response.data;
 };
@@ -34,5 +35,10 @@ export const getAllLeaves = async () => {
 
 export const updateLeaveStatus = async (id: string, status: string) => {
   const response = await api.patch(`/leaves/${id}/status`, { status });
+  return response.data;
+};
+
+export const markLeaveAsPaid = async (id: string, isPaid: boolean) => {
+  const response = await api.patch(`/leaves/${id}/mark-paid`, { isPaid });
   return response.data;
 };

@@ -171,7 +171,7 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
       include: {
         sender: { select: { name: true, employeeId: true } },
         senderClient: { select: { name: true, clientId: true } },
-        mentions: true,
+        mentions: { include: { employee: { select: { id: true, name: true } } } },
       },
     });
 
@@ -187,6 +187,22 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
     // Create system notification for employee members (excluding the sender)
     const senderName = newMessage.sender?.name || newMessage.senderClient?.name || 'Unknown';
     const members = room?.members || [];
+
+    // Notify mentioned employees specifically
+    if (mentions && mentions.length > 0) {
+      for (const mentionedId of mentions) {
+        if (mentionedId !== senderId) {
+          await createNotification(
+            mentionedId,
+            'COMMENT_ADDED' as any,
+            `${senderName} mentioned you in a chat: "${content.substring(0, 100)}"`,
+            `/dashboard/chat`
+          );
+        }
+      }
+    }
+
+    // General notification for other members
     for (const m of members) {
       if (m.employeeId && m.employeeId !== senderId) {
         await createNotification(
@@ -261,7 +277,7 @@ export const getMyChatRooms = async (req: AuthRequest, res: Response): Promise<v
 
 export const getMessagesByRoom = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const roomId = req.params.roomId as string;
+    const roomId = String(req.params.roomId);
     const limit = parseInt(req.query.limit as string) || 50;
     const cursor = req.query.cursor as string;
     const userId = req.user.id;
@@ -283,6 +299,7 @@ export const getMessagesByRoom = async (req: AuthRequest, res: Response): Promis
       include: {
         sender: { select: { name: true, employeeId: true } },
         senderClient: { select: { name: true, clientId: true } },
+        mentions: { include: { employee: { select: { id: true, name: true } } } },
       },
     };
 
@@ -327,7 +344,7 @@ export const uploadChatFile = async (req: AuthRequest, res: Response) => {
 // Advanced Group Management
 export const updateGroup = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const roomId = req.params.roomId as string;
+    const roomId = String(req.params.roomId);
     const { name, description, avatarUrl, isArchived } = req.body;
 
     const membership = await findMembership(roomId, req.user);
@@ -351,7 +368,7 @@ export const updateGroup = async (req: AuthRequest, res: Response): Promise<void
 
 export const softDeleteGroup = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const roomId = req.params.roomId as string;
+    const roomId = String(req.params.roomId);
     if (req.user.role !== 'ADMIN') {
       res.status(403).json({ error: 'Only admins can delete groups' });
       return;
@@ -371,7 +388,7 @@ export const softDeleteGroup = async (req: AuthRequest, res: Response): Promise<
 
 export const restoreGroup = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const roomId = req.params.roomId as string;
+    const roomId = String(req.params.roomId);
     if (req.user.role !== 'ADMIN') {
       res.status(403).json({ error: 'Only admins can restore groups' });
       return;
@@ -391,7 +408,7 @@ export const restoreGroup = async (req: AuthRequest, res: Response): Promise<voi
 
 export const updateChatPreferences = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const roomId = req.params.roomId as string;
+    const roomId = String(req.params.roomId);
     const { isPinned, isFavorite, isMuted, priority, lastReadAt } = req.body;
 
     const membership = await findMembership(roomId, req.user);
@@ -413,7 +430,7 @@ export const updateChatPreferences = async (req: AuthRequest, res: Response): Pr
 
 export const addGroupMember = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const roomId = req.params.roomId as string;
+    const roomId = String(req.params.roomId);
     const { employeeId, clientId } = req.body;
 
     const callerMembership = await findMembership(roomId, req.user);
@@ -436,8 +453,8 @@ export const addGroupMember = async (req: AuthRequest, res: Response): Promise<v
 
 export const removeGroupMember = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const roomId = req.params.roomId as string;
-    const memberIdToRemove = req.params.userId as string;
+    const roomId = String(req.params.roomId);
+    const memberIdToRemove = String(req.params.userId);
     const userId = req.user.id;
 
     // Users can remove themselves, but to remove others, they must be admin

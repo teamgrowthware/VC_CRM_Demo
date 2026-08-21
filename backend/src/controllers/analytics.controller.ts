@@ -32,12 +32,14 @@ export const getAttendanceStats = async (req: Request, res: Response): Promise<v
         const late = await prisma.attendance.count({ where: { date: today, status: 'LATE' }});
         const weekend = await prisma.attendance.count({ where: { date: today, status: 'WEEKEND' }});
         const weekendWork = await prisma.attendance.count({ where: { date: today, status: 'WEEKEND_WORK' }});
+        const holiday = await prisma.attendance.count({ where: { date: today, status: 'HOLIDAY' }});
+        const holidayWork = await prisma.attendance.count({ where: { date: today, status: 'HOLIDAY_WORK' }});
         
-        // Present today = sum of all active checked-in presence statuses
+        // Present today = sum of all active checked-in presence statuses (incl. late arrivals and holiday/weekend workers)
         const present = await prisma.attendance.count({ 
             where: { 
                 date: today,
-                status: { in: ['PRESENT', 'HALFDAY', 'WEEKEND_WORK'] }
+                status: { in: ['PRESENT', 'HALFDAY', 'LATE', 'WEEKEND_WORK', 'HOLIDAY_WORK'] }
             } 
         });
 
@@ -46,14 +48,15 @@ export const getAttendanceStats = async (req: Request, res: Response): Promise<v
         const totalRecorded = await prisma.attendance.count({ 
             where: { 
                 date: today,
-                status: { in: ['PRESENT', 'HALFDAY', 'WEEKEND_WORK', 'ABSENT'] }
+                status: { in: ['PRESENT', 'HALFDAY', 'LATE', 'WEEKEND_WORK', 'HOLIDAY_WORK', 'ABSENT', 'HOLIDAY'] }
             } 
         });
         
         // Final absent count = those explicitly marked absent + active employees with no record at all today
-        // However, if it's a weekend, we don't calculate virtual absence unless they are supposed to work.
+        // Skip virtual absence on weekends and holidays
+        const todayHoliday = await prisma.holiday.findFirst({ where: { date: today } });
         let absent = absentRecord;
-        if (!isWeekend(today)) {
+        if (!isWeekend(today) && !todayHoliday) {
             absent += Math.max(0, totalActive - totalRecorded);
         }
 
@@ -76,7 +79,7 @@ export const getAttendanceStats = async (req: Request, res: Response): Promise<v
             orderBy: { date: 'asc' }
         });
         
-        res.status(200).json({ present, absent, halfDay, late, onLeave, weekend, weekendWork, trend: trendRaw });
+        res.status(200).json({ present, absent, halfDay, late, onLeave, weekend, weekendWork, holiday, holidayWork, trend: trendRaw });
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: 'Failed to fetch attendance stats' });

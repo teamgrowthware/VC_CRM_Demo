@@ -4,7 +4,7 @@ generator client {
 
 generator client_backend {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
+  output   = "../backend/node_modules/.prisma/client"
 }
 
 datasource db {
@@ -17,6 +17,27 @@ model Department {
   id        String     @id @default(uuid())
   name      String     @unique
   employees Employee[]
+  projects  Project[]
+}
+
+model Team {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  description String?
+  createdAt   DateTime       @default(now())
+  projects    Project[]
+  members     TeamMember[]
+}
+
+model TeamMember {
+  id         String   @id @default(uuid())
+  teamId     String
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  joinedAt   DateTime @default(now())
+
+  @@unique([teamId, employeeId])
 }
 
 model Employee {
@@ -26,6 +47,7 @@ model Employee {
   email                    String                @unique
   password                 String
   phone                    String?
+  avatarUrl                String?
   departmentId             String?
   department               Department?           @relation(fields: [departmentId], references: [id])
   designation              String
@@ -77,6 +99,7 @@ model Employee {
   pushSubscriptions   PushSubscription[]
   notificationSetting NotificationSetting?
   messageMentions     MessageMention[]
+  teamMembers         TeamMember[]
 }
 
 enum Role {
@@ -124,6 +147,8 @@ enum AttendanceStatus {
   WEEKEND
   WEEKEND_WORK
   AUTO_PUNCH_OUT
+  HOLIDAY
+  HOLIDAY_WORK
 }
 
 model AttendanceDeviceLog {
@@ -132,11 +157,11 @@ model AttendanceDeviceLog {
   attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
   employeeId   String
   employee     Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  actionType   String
+  actionType   String // PUNCH_IN, PUNCH_OUT, BREAK_START, LUNCH_START, etc.
 
   deviceFingerprint String?
-  deviceType        String?
-  loginSource       String?
+  deviceType        String? // Mobile, Desktop, Tablet
+  loginSource       String? // WEB_DESKTOP, WEB_MOBILE, ANDROID_APP, IOS_APP, PWA
   deviceName        String?
   browser           String?
   browserVersion    String?
@@ -149,6 +174,7 @@ model AttendanceDeviceLog {
   timezone          String?
   language          String?
 
+  // Future ready fields
   gpsLocation        String?
   officeNetwork      String?
   wifiName           String?
@@ -189,6 +215,10 @@ model Project {
   description      String?
   managerId        String
   manager          Employee           @relation("ProjectManager", fields: [managerId], references: [id])
+  teamId           String?
+  team             Team?              @relation(fields: [teamId], references: [id])
+  departmentId     String?
+  department       Department?        @relation(fields: [departmentId], references: [id])
   clientId         String?
   client           Client?            @relation(fields: [clientId], references: [id])
   members          ProjectMember[]
@@ -538,6 +568,7 @@ enum NotificationType {
   DEADLINE_APPROACHING
   LEAVE_APPROVED
   LEAVE_REJECTED
+  PROJECT_ASSIGNED
 }
 
 model DailyReport {
@@ -565,8 +596,8 @@ model ChatRoom {
   messages    Message[]
 
   isArchived Boolean @default(false)
-  isDeleted  Boolean @default(false)
-  createdBy  String?
+  isDeleted  Boolean @default(false) // Soft delete for compliance
+  createdBy  String? // Employee ID of the creator for custom groups
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -621,6 +652,7 @@ model Message {
   fileUrl    String?
   fileType   String?
 
+  // To track @mentions
   mentions MessageMention[]
 
   createdAt DateTime @default(now())
@@ -631,7 +663,7 @@ model Message {
 }
 
 model MessageMention {
-  id         String   @id @default(uuid())
+  id         String   @id @default(cuid())
   messageId  String
   message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
   employeeId String
@@ -642,7 +674,7 @@ model MessageMention {
 }
 
 model Invoice {
-  id           String        @id @default(uuid())
+  id           String        @id @default(cuid())
   clientName   String
   clientId     String?
   client       Client?       @relation(fields: [clientId], references: [id])
@@ -671,12 +703,12 @@ enum InvoiceStatus {
 }
 
 model InvoiceItem {
-  id          String  @id @default(uuid())
+  id          String  @id @default(cuid())
   invoiceId   String
   invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   description String
-  hours       Float?
-  rate        Float?
+  hours       Float? // Optional for fixed-price items
+  rate        Float? // Optional for fixed-price items
   total       Float
 }
 
@@ -685,7 +717,7 @@ model Lead {
   name       String
   email      String     @unique
   phone      String?
-  source     String?
+  source     String? // LinkedIn, Website, Referral
   status     LeadStatus @default(NEW)
   assignedId String?
   assignedTo Employee?  @relation(fields: [assignedId], references: [id])
@@ -731,9 +763,9 @@ model PerformanceReview {
   employee   Employee @relation("EmployeeReviews", fields: [employeeId], references: [id])
   reviewerId String
   reviewer   Employee @relation("Reviewer", fields: [reviewerId], references: [id])
-  rating     Int
+  rating     Int // 1-5
   feedback   String
-  period     String
+  period     String // Q1 2024, Annual 2024
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
@@ -743,7 +775,7 @@ model Expense {
   employeeId   String?
   employee     Employee?     @relation("ExpenseEmployee", fields: [employeeId], references: [id])
   amount       Float
-  category     String
+  category     String // Travel, Meals, Software, Gadgets
   description  String
   status       ExpenseStatus @default(PENDING)
   receiptUrl   String?
@@ -766,7 +798,7 @@ enum ExpenseStatus {
 model Revenue {
   id          String   @id @default(cuid())
   amount      Float
-  source      String
+  source      String // Client, Project, Service, etc.
   description String?
   date        DateTime @default(now())
   createdAt   DateTime @default(now())
@@ -778,7 +810,7 @@ model Meeting {
   title        String
   startTime    DateTime
   endTime      DateTime
-  location     String?
+  location     String? // G-Meet, Office, External
   projectId    String?
   project      Project?   @relation(fields: [projectId], references: [id])
   meetingUrl   String?
@@ -838,7 +870,8 @@ enum PayrollStatus {
 model Holiday {
   id        String      @id @default(cuid())
   name      String
-  date      DateTime    @unique
+  date      DateTime
+  endDate   DateTime?
   type      HolidayType @default(PUBLIC)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
@@ -853,25 +886,29 @@ model SystemSettings {
   id                String  @id @default("default")
   officeStartTime   String  @default("09:30")
   lateThreshold     String  @default("09:45")
-  lateComingEnabled Boolean @default(true)
-  halfDayEnabled    Boolean @default(true)
-  lunchDuration     Int     @default(60)
-  breakDuration     Int     @default(30)
+  lateComingEnabled Boolean @default(false)
+  halfDayEnabled    Boolean @default(false)
+  lunchDuration     Int     @default(60) // in minutes
+  breakDuration     Int     @default(30) // in minutes
   sodReminderTime   String  @default("11:00")
   eodReminderTime   String  @default("19:30")
 
+  // Idle detection settings
   idleTimeoutMinutes      Int     @default(10)
   idleWarningSeconds      Int     @default(60)
   autoPauseTimerEnabled   Boolean @default(true)
   requireApprovalToResume Boolean @default(true)
 
+  // Desktop App settings
   desktopAppEnabledRoles   String[] @default(["EMPLOYEE", "HR", "MANAGER", "PROJECT_MANAGER"])
   heartbeatIntervalSeconds Int      @default(60)
   autoStartEnabled         Boolean  @default(true)
 
+  // Custom Rules
   ruleBookText String? @default("")
 
-  financePin String @default("1234")
+  // Finance
+  financePin String?
 
   updatedAt DateTime @updatedAt
 }
@@ -895,7 +932,7 @@ model SalaryDeduction {
   id         String   @id @default(cuid())
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  type       String
+  type       String // Late, Unpaid Leave, Advance, Loan, Penalty, Custom
   amount     Float
   reason     String
   date       DateTime @default(now())
@@ -909,7 +946,7 @@ model SalaryAddon {
   id         String   @id @default(cuid())
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  type       String
+  type       String // Bonus, Incentive, Arrears, Custom
   amount     Float
   reason     String
   date       DateTime @default(now())
@@ -922,7 +959,7 @@ model SalaryAddon {
 model PettyCash {
   id             String   @id @default(cuid())
   date           DateTime @default(now())
-  type           String
+  type           String // IN, OUT
   amount         Float
   category       String?
   remarks        String?
@@ -946,6 +983,7 @@ model ProjectMilestone {
   completedAt DateTime?
   status     MilestoneStatus @default(PENDING)
 
+  // Reminders
   reminderSentOneDayBefore Boolean   @default(false)
   reminderSentOnDueDate    Boolean   @default(false)
   reminderSentOverdue      Boolean   @default(false)
@@ -972,10 +1010,10 @@ model ProjectPayment {
   milestone        ProjectMilestone? @relation(fields: [milestoneId], references: [id])
   amount           Float
   date             DateTime          @default(now())
-  mode             String
-  transactionId    String?
-  paymentReference String?
-  receiptUrl       String?
+  mode             String // Cash, Bank, UPI
+  transactionId    String? // Unique identifier from the payment gateway/bank
+  paymentReference String? // Manual reference or notes
+  receiptUrl       String? // URL to payment proof/receipt
   createdById      String
   createdBy        Employee          @relation(fields: [createdById], references: [id])
   notes            String?
@@ -1064,7 +1102,7 @@ model Announcement {
   id        String    @id @default(uuid())
   title     String
   message   String
-  priority  String    @default("LOW")
+  priority  String    @default("LOW") // LOW, MEDIUM, HIGH
   isActive  Boolean   @default(true)
   expiresAt DateTime?
   createdAt DateTime  @default(now())
@@ -1074,7 +1112,7 @@ model Announcement {
 model Event {
   id          String   @id @default(uuid())
   title       String
-  type        String
+  type        String // OUTING, TRAINING, MEETING, CELEBRATION
   location    String?
   date        DateTime
   description String?
@@ -1086,12 +1124,12 @@ model Payslip {
   id         String   @id @default(uuid())
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  month      String
-  period     String
-  monthInt   Int
-  yearInt    Int
+  month      String // e.g. "March 2026"
+  period     String // e.g. "Mar 01 - Mar 31"
+  monthInt   Int    // month number for filtering/upsert
+  yearInt    Int    // year for filtering/upsert
   netSalary  Float
-  data       Json?
+  data       Json?  // full slip snapshot (earnings, deductions, attendance)
   fileUrl    String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -1114,7 +1152,7 @@ model NotificationSetting {
   id           String   @id @default(uuid())
   userId       String   @unique
   user         Employee @relation(fields: [userId], references: [id], onDelete: Cascade)
-  enabledTypes String[]
+  enabledTypes String[] // Array of enabled notification types (empty means none)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -1141,7 +1179,7 @@ model TicketReply {
   id         String   @id @default(cuid())
   ticketId   String
   ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  senderType String
+  senderType String   // CLIENT or EMPLOYEE
   senderId   String
   senderName String
   message    String

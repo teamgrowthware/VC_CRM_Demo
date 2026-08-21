@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Task } from '@/types/task';
 import { Search, Plus, AlertCircle, Bookmark, Code2 } from 'lucide-react';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface BacklogProps {
   tasks: Task[];
@@ -98,9 +99,7 @@ export const Backlog = ({ tasks, onCreateTask, onTaskSelect }: BacklogProps) => 
                 </span>
 
                 {task.assignedTo ? (
-                   <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold" title={task.assignedTo.name}>
-                     {task.assignedTo.name.charAt(0)}
-                   </div>
+                   <UserAvatar name={task.assignedTo.name} avatarUrl={(task.assignedTo as { avatarUrl?: string }).avatarUrl} size="xs" />
                 ) : (
                    <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-400 flex items-center justify-center text-xs border border-dashed border-zinc-300 dark:border-zinc-700" title="Unassigned">
                      ?

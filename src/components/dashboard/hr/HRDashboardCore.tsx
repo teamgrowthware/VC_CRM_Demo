@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { 
   Users, UserCheck, UserX, Clock, MapPin, Loader2, ClipboardList, TrendingUp, Calendar as CalendarIcon 
@@ -86,7 +87,7 @@ export default function HRDashboardCore() {
   }, [user]);
 
   useEffect(() => {
-    fetchAllData();
+    queueMicrotask(fetchAllData);
   }, [fetchAllData]);
 
   if (statsLoading && !employeeStats) {
@@ -126,13 +127,14 @@ export default function HRDashboardCore() {
           value={attendanceStats?.present || 0} 
           icon={UserCheck} 
           color="emerald"
-          href="/dashboard/attendance"
+          href="/dashboard/attendance?tab=team&status=PRESENT"
         />
         <StatCard 
           title="Absent Today" 
           value={attendanceStats?.absent || 0} 
           icon={UserX} 
           color="red"
+          href="/dashboard/attendance?tab=team&status=ABSENT"
         />
         <StatCard 
           title="SODs Submitted" 
@@ -168,22 +170,22 @@ export default function HRDashboardCore() {
              <h3 className="text-lg font-bold mb-2">Quick Access</h3>
              <p className="text-indigo-100 text-sm mb-6">Manage employee lifecycle and policy settings.</p>
              <div className="grid grid-cols-2 gap-3">
-                <a href="/dashboard/employees" className="bg-white/10 hover:bg-white/20 p-3 rounded-xl text-center transition-all">
+                <Link href="/dashboard/employees" className="bg-white/10 hover:bg-white/20 p-3 rounded-xl text-center transition-all">
                    <Users className="w-5 h-5 mx-auto mb-1" />
                    <span className="text-[10px] font-bold uppercase tracking-wider">Directory</span>
-                </a>
-                <a href="/dashboard/attendance" className="bg-white/10 hover:bg-white/20 p-3 rounded-xl text-center transition-all">
+                </Link>
+                <Link href="/dashboard/attendance" className="bg-white/10 hover:bg-white/20 p-3 rounded-xl text-center transition-all">
                    <Clock className="w-5 h-5 mx-auto mb-1" />
                    <span className="text-[10px] font-bold uppercase tracking-wider">Attendance</span>
-                </a>
-                <a href="/dashboard/attendance?tab=calendar" className="bg-white/10 hover:bg-white/20 p-3 rounded-xl text-center transition-all">
+                </Link>
+                <Link href="/dashboard/attendance?tab=calendar" className="bg-white/10 hover:bg-white/20 p-3 rounded-xl text-center transition-all">
                    <CalendarIcon className="w-5 h-5 mx-auto mb-1" />
                    <span className="text-[10px] font-bold uppercase tracking-wider">Holidays</span>
-                </a>
-                <a href="/dashboard/leaves" className="bg-white/10 hover:bg-white/20 p-3 rounded-xl text-center transition-all">
+                </Link>
+                <Link href="/dashboard/leaves" className="bg-white/10 hover:bg-white/20 p-3 rounded-xl text-center transition-all">
                    <MapPin className="w-5 h-5 mx-auto mb-1" />
                    <span className="text-[10px] font-bold uppercase tracking-wider">Leaves</span>
-                </a>
+                </Link>
              </div>
           </div>
         </div>

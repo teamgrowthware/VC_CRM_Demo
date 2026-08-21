@@ -2,8 +2,8 @@ import apiClient from './apiClient';
 
 export interface TimeEntry {
   id: string;
-  taskId?: string;
-  projectId?: string;
+  taskId?: string | null;
+  projectId?: string | null;
   employeeId: string;
   startTime: string;
   endTime?: string;
@@ -20,8 +20,8 @@ export interface TimeEntry {
   employee?: { name: string; employeeId: string; designation: string };
   project?: { name: string; projectId: string };
   task?: { title: string; taskId: string };
-  manualProjectName?: string;
-  rejectionReason?: string;
+  manualProjectName?: string | null;
+  rejectionReason?: string | null;
 }
 
 export interface TimerSession {
@@ -56,68 +56,68 @@ export interface ProjectAnalytics {
 }
 
 export const startTimer = async (data: { taskId?: string; projectId?: string; description?: string; workCategory?: string }) => {
-  const response = await apiClient.post<any>('/timesheets/timer/start', data);
+  const response = await apiClient.post('/timesheets/timer/start', data);
   return response.data;
 };
 
 export const pauseTimer = async () => {
-  const response = await apiClient.post<any>('/timesheets/timer/pause');
+  const response = await apiClient.post('/timesheets/timer/pause');
   return response.data;
 };
 
 export const resumeTimer = async () => {
-  const response = await apiClient.post<any>('/timesheets/timer/resume');
+  const response = await apiClient.post('/timesheets/timer/resume');
   return response.data;
 };
 
 export const stopTimer = async (data: { description: string; workCategory?: string; productivityRating?: number; isBillable?: boolean }) => {
-  const response = await apiClient.post<any>('/timesheets/timer/stop', data);
+  const response = await apiClient.post('/timesheets/timer/stop', data);
   return response.data;
 };
 
 export const getActiveTimer = async () => {
-  const response = await apiClient.get<any>('/timesheets/active-timer');
+  const response = await apiClient.get('/timesheets/active-timer');
   return response.data;
 };
 
-export const getMyTimesheets = async (params?: any) => {
-  const response = await apiClient.get<any>('/timesheets/my', { params });
+export const getMyTimesheets = async (params?: Record<string, unknown>) => {
+  const response = await apiClient.get('/timesheets/my', { params });
   return response.data;
 };
 
-export const addManualEntry = async (data: any) => {
-  const response = await apiClient.post<any>('/timesheets/manual', data);
+export const addManualEntry = async (data: Record<string, unknown>) => {
+  const response = await apiClient.post('/timesheets/manual', data);
   return response.data;
 };
 
-export const getProjectTimesheets = async (projectId: string, params?: any) => {
-  const response = await apiClient.get<any>(`/projects/${projectId}/timesheets`, { params });
+export const getProjectTimesheets = async (projectId: string, params?: Record<string, unknown>) => {
+  const response = await apiClient.get(`/projects/${projectId}/timesheets`, { params });
   return response.data;
 };
 
 export const getProjectTimeSummary = async (projectId: string) => {
-  const response = await apiClient.get<any>(`/projects/${projectId}/timesheet-summary`);
+  const response = await apiClient.get(`/projects/${projectId}/timesheet-summary`);
   return response.data;
 };
 
-export const getAdminTimesheets = async (params?: any) => {
-  const response = await apiClient.get<any>('/timesheets/admin/entries', { params });
+export const getAdminTimesheets = async (params?: Record<string, unknown>) => {
+  const response = await apiClient.get('/timesheets/admin/entries', { params });
   return response.data;
 };
 
 export const approveTimeEntry = async (id: string) => {
-  const response = await apiClient.put<any>(`/timesheets/${id}/approve`);
+  const response = await apiClient.put(`/timesheets/${id}/approve`);
   return response.data;
 };
 
 export const rejectTimeEntry = async (id: string, reason: string) => {
-  const response = await apiClient.put<any>(`/timesheets/${id}/reject`, { reason });
+  const response = await apiClient.put(`/timesheets/${id}/reject`, { reason });
   return response.data;
 };
 
 // Aliases for compatibility with existing components
 export const getAdminTimesheetOverview = async (month?: number, year?: number) => {
-  const response = await apiClient.get<any>('/timesheets/admin/overview', { params: { month, year } });
+  const response = await apiClient.get('/timesheets/admin/overview', { params: { month, year } });
   return response.data;
 };
 
@@ -131,21 +131,21 @@ export const getProjectAnalytics = async (projectId: string) => {
 };
 
 export const getAttendanceComparison = async (employeeId: string, date: string) => {
-  const response = await apiClient.get<any>('/timesheets/analytics/attendance-comparison', { params: { employeeId, date } });
+  const response = await apiClient.get('/timesheets/analytics/attendance-comparison', { params: { employeeId, date } });
   return response.data;
 };
 
 export const getTeamAnalytics = async (startDate?: string, endDate?: string) => {
-  const response = await apiClient.get<any[]>('/timesheets/analytics/team', { params: { startDate, endDate } });
+  const response = await apiClient.get('/timesheets/analytics/team', { params: { startDate, endDate } });
   return response.data;
 };
 
-export const updateTimeEntry = async (id: string, updates: any) => {
-  const response = await apiClient.patch<any>(`/timesheets/${id}`, updates);
+export const updateTimeEntry = async (id: string, updates: Partial<TimeEntry>) => {
+  const response = await apiClient.patch(`/timesheets/${id}`, updates);
   return response.data;
 };
 
 export const deleteTimeEntry = async (id: string) => {
-  const response = await apiClient.delete<any>(`/timesheets/${id}`);
+  const response = await apiClient.delete(`/timesheets/${id}`);
   return response.data;
 };

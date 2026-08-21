@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Loader2, ArrowLeft, Calendar, Clock, Milestone } from 'lucide-react';
+import { Loader2, ArrowLeft, Calendar, Clock } from 'lucide-react';
 import { getMyProjectDetail, ClientProject } from '@/lib/api/client';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 const statusColors: Record<string, string> = {
   PLANNING: 'bg-muted text-muted-foreground',
@@ -251,9 +252,7 @@ export default function ClientProjectDetail() {
             ) : (
               project.team.map(member => (
                 <div key={member.id} className="px-6 py-4 flex items-center gap-4 hover:bg-muted/50 transition-colors">
-                  <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-sm font-bold text-foreground">
-                    {member.name.charAt(0).toUpperCase()}
-                  </div>
+                  <UserAvatar name={member.name} size="sm" />
                   <div className="flex-1">
                     <div className="text-sm font-medium text-foreground">{member.name}</div>
                     <div className="text-xs text-muted-foreground">{member.designation || member.role}</div>

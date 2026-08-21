@@ -16,7 +16,7 @@ export const getAllLeads = async (req: Request, res: Response) => {
     });
     res.json(leads);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching leads', error });
+    res.status(500).json({ message: 'Error fetching leads' });
   }
 };
 
@@ -37,7 +37,7 @@ export const getLeadById = async (req: Request, res: Response) => {
     if (!lead) return res.status(404).json({ message: 'Lead not found' });
     res.json(lead);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching lead', error });
+    res.status(500).json({ message: 'Error fetching lead' });
   }
 };
 
@@ -57,7 +57,7 @@ export const createLead = async (req: Request, res: Response) => {
     });
     res.status(201).json(lead);
   } catch (error) {
-    res.status(500).json({ message: 'Error creating lead', error });
+    res.status(500).json({ message: 'Error creating lead' });
   }
 };
 
@@ -79,7 +79,7 @@ export const updateLead = async (req: Request, res: Response) => {
     });
     res.json(lead);
   } catch (error) {
-    res.status(500).json({ message: 'Error updating lead', error });
+    res.status(500).json({ message: 'Error updating lead' });
   }
 };
 
@@ -91,6 +91,6 @@ export const deleteLead = async (req: Request, res: Response) => {
     });
     res.json({ message: 'Lead deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Error deleting lead', error });
+    res.status(500).json({ message: 'Error deleting lead' });
   }
 };

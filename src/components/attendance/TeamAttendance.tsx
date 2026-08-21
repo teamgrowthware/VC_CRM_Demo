@@ -24,7 +24,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DateInput } from '@/components/ui/DateInput';
-
+import { CreateLeaveModal } from './CreateLeaveModal';
+import { CreateHolidayModal } from './CreateHolidayModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchParams } from 'next/navigation';
 
@@ -43,7 +44,10 @@ export function TeamAttendance() {
   const [selectedRecord, setSelectedRecord] = useState<{ id: string, status: AttendanceStatus } | null>(null);
   const [adminNote, setAdminNote] = useState('');
   const [showNoteModal, setShowNoteModal] = useState(false);
-  const [selectedDeviceLogs, setSelectedDeviceLogs] = useState<any[] | null>(null);
+  const [selectedDeviceLogs, setSelectedDeviceLogs] = useState<Attendance['deviceLogs'] | null>(null);
+  
+  const [showCreateLeaveModal, setShowCreateLeaveModal] = useState(false);
+  const [showCreateHolidayModal, setShowCreateHolidayModal] = useState(false);
 
   const fetchAttendance = async () => {
     try {
@@ -111,6 +115,8 @@ export function TeamAttendance() {
       case 'ABSENT': return <XCircle className="w-4 h-4 text-red-500" />;
       case 'WEEKEND': return <CalendarIcon className="w-4 h-4 text-zinc-500" />;
       case 'WEEKEND_WORK': return <CheckCircle className="w-4 h-4 text-indigo-500" />;
+      case 'HOLIDAY': return <CalendarIcon className="w-4 h-4 text-blue-500" />;
+      case 'HOLIDAY_WORK': return <CheckCircle className="w-4 h-4 text-cyan-500" />;
       default: return null;
     }
   };
@@ -122,13 +128,15 @@ export function TeamAttendance() {
       case 'ABSENT': return 'bg-red-500/10 text-red-500 border-red-500/20';
       case 'WEEKEND': return 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20';
       case 'WEEKEND_WORK': return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
+      case 'HOLIDAY': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+      case 'HOLIDAY_WORK': return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
       default: return 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20';
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-zinc-900/50 p-4 rounded-xl border border-zinc-800">
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-white dark:bg-zinc-900/50 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
         <div className="flex items-center gap-4">
           <DateInput 
             value={date} 
@@ -138,22 +146,40 @@ export function TeamAttendance() {
           <button 
             onClick={fetchAttendance}
             disabled={loading}
-            className="p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-colors disabled:opacity-50"
+            className="p-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-lg transition-colors disabled:opacity-50"
             title="Refresh"
           >
-            <RefreshCw className={`w-4 h-4 text-zinc-400 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 text-zinc-500 dark:text-zinc-400 ${loading ? 'animate-spin' : ''}`} />
           </button>
+          
+          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'HR') && (
+            <>
+              <div className="h-6 w-[1px] bg-zinc-200 dark:bg-zinc-700 mx-2 hidden sm:block" />
+              <button 
+                onClick={() => setShowCreateLeaveModal(true)}
+                className="hidden sm:flex px-3 py-1.5 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg text-xs font-bold transition-colors border border-blue-200 dark:border-blue-800"
+              >
+                + Add Custom Leave
+              </button>
+              <button 
+                onClick={() => setShowCreateHolidayModal(true)}
+                className="hidden sm:flex px-3 py-1.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-lg text-xs font-bold transition-colors border border-indigo-200 dark:border-indigo-800"
+              >
+                + Add Holiday
+              </button>
+            </>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {(['ALL', 'PRESENT', 'HALFDAY', 'ABSENT', 'WEEKEND', 'WEEKEND_WORK'] as const).map((s) => (
+          {(['ALL', 'PRESENT', 'HALFDAY', 'ABSENT', 'WEEKEND', 'WEEKEND_WORK', 'HOLIDAY', 'HOLIDAY_WORK'] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
                 statusFilter === s 
                 ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20' 
-                : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
+                : 'bg-zinc-100 border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 dark:hover:bg-zinc-700'
               }`}
             >
               {s}
@@ -163,7 +189,7 @@ export function TeamAttendance() {
           <select
             value={deviceFilter}
             onChange={(e) => setDeviceFilter(e.target.value as any)}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-zinc-800 border border-zinc-700 text-zinc-400 outline-none focus:ring-2 focus:ring-blue-500/50"
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-400 outline-none focus:ring-2 focus:ring-blue-500/50"
           >
             <option value="ALL">All Devices</option>
             <option value="Desktop">Desktop</option>
@@ -174,7 +200,7 @@ export function TeamAttendance() {
           <select
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value as any)}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-zinc-800 border border-zinc-700 text-zinc-400 outline-none focus:ring-2 focus:ring-blue-500/50"
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-400 outline-none focus:ring-2 focus:ring-blue-500/50"
           >
             <option value="ALL">All Sources</option>
             <option value="WEB_DESKTOP">Web Desktop</option>
@@ -190,27 +216,27 @@ export function TeamAttendance() {
             placeholder="Search employee, ID, IP, fingerprint..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-200 outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
           />
         </div>
       </div>
 
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-800/50">
-                <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">Punch In/Out</th>
-                <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">Break Time</th>
-                <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">Duration</th>
-                <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">Early Exit Reason</th>
-                <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">Device</th>
-                <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider text-right">Actions</th>
+              <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+                <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Employee</th>
+                <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Punch In/Out</th>
+                <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Break Time</th>
+                <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Duration</th>
+                <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Early Exit Reason</th>
+                <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Device</th>
+                <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800">
+            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {loading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <tr key={i} className="animate-pulse">
@@ -219,27 +245,27 @@ export function TeamAttendance() {
                 ))
               ) : filteredRecords.length > 0 ? (
                 filteredRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-zinc-800/30 transition-colors">
+                  <tr key={record.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700">
+                        <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700">
                           <User className="w-4 h-4 text-zinc-400" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-zinc-200">{record.employee?.name}</p>
+                          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-200">{record.employee?.name}</p>
                           <p className="text-xs text-zinc-500 font-mono">{record.employee?.employeeId}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-zinc-300">
+                        <div className="flex items-center gap-2 text-zinc-800 dark:text-zinc-300">
                           <span className="text-[10px] text-zinc-500 uppercase font-bold w-6">In</span>
                           <span className="text-sm font-medium">
                             {record.punchIn ? format(new Date(record.punchIn), 'hh:mm aa') : '—'}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 text-zinc-400">
+                        <div className="flex items-center gap-2 text-zinc-700 dark:text-zinc-400">
                           <span className="text-[10px] text-zinc-500 uppercase font-bold w-6">Out</span>
                           <span className="text-sm font-medium">
                             {record.punchOut ? format(new Date(record.punchOut), 'hh:mm aa') : '—'}
@@ -496,6 +522,17 @@ export function TeamAttendance() {
           </div>
         </div>
       )}
+
+      <CreateLeaveModal 
+        isOpen={showCreateLeaveModal} 
+        onClose={() => setShowCreateLeaveModal(false)} 
+        onSuccess={fetchAttendance} 
+      />
+      <CreateHolidayModal 
+        isOpen={showCreateHolidayModal} 
+        onClose={() => setShowCreateHolidayModal(false)} 
+        onSuccess={fetchAttendance} 
+      />
     </div>
   );
 }

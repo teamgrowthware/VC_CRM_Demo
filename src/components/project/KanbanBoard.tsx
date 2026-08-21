@@ -5,6 +5,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 import { Clock, MessageSquare, Paperclip, MoreVertical, AlertCircle, Bookmark, Code2 } from 'lucide-react';
 import { Task } from '@/types/task';
 import { changeTaskStatus } from '@/lib/api/task';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 interface BoardProps {
   tasks: Task[];
@@ -57,7 +58,7 @@ export const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick }: BoardProps) =>
         data['TODO'].push(t); // fallback
       }
     });
-    setBoardData(data);
+    queueMicrotask(() => setBoardData(data));
   }, [tasks]);
 
   const onDragEnd = async (result: DropResult) => {
@@ -172,9 +173,7 @@ export const KanbanBoard = ({ tasks, onTaskUpdate, onTaskClick }: BoardProps) =>
                             </div>
 
                             {item.assignedTo && (
-                               <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold ring-2 ring-white dark:ring-[#222]" title={item.assignedTo.name}>
-                                 {item.assignedTo.name.charAt(0)}
-                               </div>
+                               <UserAvatar name={item.assignedTo.name} avatarUrl={(item.assignedTo as { avatarUrl?: string }).avatarUrl} size="xs" className="ring-2 ring-white dark:ring-[#222]" />
                             )}
                           </div>
                         </div>

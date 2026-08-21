@@ -29,7 +29,7 @@ export default function SocketProvider({ children }: { children: React.ReactNode
       console.log('[SocketProvider] Socket disconnected');
     });
 
-    setSocket(socketInstance);
+    queueMicrotask(() => setSocket(socketInstance));
 
     return () => {
       socketInstance.disconnect();

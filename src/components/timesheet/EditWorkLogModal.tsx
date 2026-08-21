@@ -62,7 +62,7 @@ export default function EditWorkLogModal({ isOpen, entry, onClose, onSuccess }: 
       setFetchingData(true);
       const data = await getAllProjects();
       setProjects(data);
-    } catch (error) {
+    } catch (thrown) { const error = thrown as ApiError;
       toast.error('Failed to load projects');
     } finally {
       setFetchingData(false);
@@ -73,7 +73,7 @@ export default function EditWorkLogModal({ isOpen, entry, onClose, onSuccess }: 
     try {
       const data = await getTasksByProject(projectId);
       setTasks(data);
-    } catch (error) {
+    } catch (thrown) { const error = thrown as ApiError;
       console.error('Failed to load tasks');
     }
   };
@@ -105,7 +105,7 @@ export default function EditWorkLogModal({ isOpen, entry, onClose, onSuccess }: 
       toast.success('Work log updated successfully');
       onSuccess();
       onClose();
-    } catch (error: any) {
+    } catch (thrown) { const error = thrown as ApiError;
       const message = error.response?.data?.message || 'Failed to update entry';
       toast.error(message);
     } finally {

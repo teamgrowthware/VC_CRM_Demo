@@ -37,7 +37,7 @@ export const DailyReportModal: React.FC<DailyReportModalProps> = ({
       }
       onSuccess();
       onClose();
-    } catch (error: any) {
+    } catch (thrown) { const error = thrown as ApiError;
       console.error(`Failed to submit ${type}`, error);
       alert(error.response?.data?.error || `Failed to submit ${type}`);
     } finally {

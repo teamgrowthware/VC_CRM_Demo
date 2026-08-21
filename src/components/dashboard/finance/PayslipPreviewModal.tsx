@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { X, Printer, Download, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { Payslip, PayslipData, PayslipItem, PayslipPenalty } from '@/lib/api/payslip';
+import { Payslip, PayslipData, PayslipItem, PayslipPenalty, PayslipLeave, PayslipDeductionBreakdownItem } from '@/lib/api/payslip';
 import { downloadPayslipPdf, formatINR, amountInWords } from '@/lib/payslipPdf';
 
 const LOGO_PATH = '/Vortexcubes%20Logo%20-%204.png';
@@ -19,6 +19,8 @@ export default function PayslipPreviewModal({ payslip, onClose }: { payslip: Pay
   const addons: PayslipItem[] = earnings.addons || [];
   const customDeductions: PayslipItem[] = deductions.customDeductions || [];
   const penalties: PayslipPenalty[] = deductions.penalties || [];
+  const leaves: PayslipLeave[] = data.leaves || [];
+  const deductionBreakdown: PayslipDeductionBreakdownItem[] = data.deductionBreakdown || [];
   const departmentName = typeof emp.department === 'string' ? emp.department : emp.department?.name || payslip.employee?.department?.name || '-';
 
   const handleDownloadPdf = async () => {
@@ -81,7 +83,6 @@ export default function PayslipPreviewModal({ payslip, onClose }: { payslip: Pay
           {/* Header */}
           <div className="flex items-start justify-between border-b-2 border-indigo-600 pb-5">
             <div className="flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={LOGO_PATH} alt="Vortex Cubes" className="h-14 w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
             </div>
             <div className="text-right">
@@ -122,6 +123,51 @@ export default function PayslipPreviewModal({ payslip, onClose }: { payslip: Pay
             </div>
           </div>
 
+          {/* Leave Details */}
+          {leaves.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs font-black uppercase tracking-widest text-blue-600 mb-2">Leave Details</p>
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-blue-600 text-white">
+                    <th className="text-left px-3 py-2 text-xs font-bold uppercase tracking-wide">Period</th>
+                    <th className="text-left px-3 py-2 text-xs font-bold uppercase tracking-wide">Type</th>
+                    <th className="text-center px-3 py-2 text-xs font-bold uppercase tracking-wide">Days</th>
+                    <th className="text-left px-3 py-2 text-xs font-bold uppercase tracking-wide">Reason</th>
+                    <th className="text-center px-3 py-2 text-xs font-bold uppercase tracking-wide">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  {leaves.map((leave, i) => (
+                    <tr key={i} className="border-b border-zinc-200">
+                      <td className="px-3 py-2 text-xs">
+                        {new Date(leave.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                        {' - '}
+                        {new Date(leave.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                      </td>
+                      <td className="px-3 py-2 text-xs font-medium">{leave.leaveType.replace(/_/g, ' ')}</td>
+                      <td className="px-3 py-2 text-center text-xs font-bold">{leave.numberOfDays}</td>
+                      <td className="px-3 py-2 text-xs text-zinc-500 max-w-[200px] truncate">{leave.reason}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                          leave.isPaid
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-red-100 text-red-600'
+                        }`}>
+                          {leave.isPaid ? 'PAID' : 'UNPAID'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="flex gap-4 mt-2 text-[10px] font-bold text-zinc-500">
+                <span>Paid Leaves: <b className="text-blue-600">{data.paidLeaveDays ?? 0}</b></span>
+                <span>Unpaid Leaves: <b className="text-red-500">{data.unpaidLeaveDays ?? 0}</b></span>
+              </div>
+            </div>
+          )}
+
           {/* Earnings */}
           <div className="mb-6">
             <p className="text-xs font-black uppercase tracking-widest text-emerald-600 mb-2">Earnings</p>
@@ -158,48 +204,78 @@ export default function PayslipPreviewModal({ payslip, onClose }: { payslip: Pay
               <thead>
                 <tr className="bg-red-600 text-white">
                   <th className="text-left px-3 py-2 text-xs font-bold uppercase tracking-wide">Particulars</th>
+                  <th className="text-center px-3 py-2 text-xs font-bold uppercase tracking-wide w-24">Date</th>
                   <th className="text-right px-3 py-2 text-xs font-bold uppercase tracking-wide">Amount</th>
                 </tr>
               </thead>
               <tbody className="text-sm">
-                {!!deductions.attendanceDeduction && (
-                  <tr className="border-b border-zinc-200">
-                    <td className="px-3 py-2">Attendance / Leave Deduction</td>
-                    <td className="px-3 py-2 text-right font-medium">{formatINR(deductions.attendanceDeduction)}</td>
-                  </tr>
-                )}
-                {!!deductions.halfDayDeduction && (
-                  <tr className="border-b border-zinc-200">
-                    <td className="px-3 py-2">Half-Day Deduction</td>
-                    <td className="px-3 py-2 text-right font-medium">{formatINR(deductions.halfDayDeduction)}</td>
-                  </tr>
-                )}
-                {!!deductions.joiningDeduction && (
-                  <tr className="border-b border-zinc-200">
-                    <td className="px-3 py-2">Joining Pro-rata Deduction</td>
-                    <td className="px-3 py-2 text-right font-medium">{formatINR(deductions.joiningDeduction)}</td>
-                  </tr>
+                {deductionBreakdown.length > 0 ? (
+                  deductionBreakdown.map((item, i) => (
+                    <tr key={`db-${i}`} className="border-b border-zinc-200">
+                      <td className="px-3 py-2">
+                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded mr-1.5 ${
+                          item.type === 'ABSENT' ? 'bg-red-100 text-red-600' :
+                          item.type === 'HALFDAY' ? 'bg-amber-100 text-amber-600' :
+                          item.type === 'PENALTY' ? 'bg-red-100 text-red-600' :
+                          item.type === 'JOINING' ? 'bg-zinc-100 text-zinc-600' :
+                          'bg-zinc-100 text-zinc-600'
+                        }`}>
+                          {item.type === 'ABSENT' ? 'Absent' :
+                           item.type === 'HALFDAY' ? 'Half Day' :
+                           item.type === 'PENALTY' ? 'Fine' :
+                           item.type === 'JOINING' ? 'Joining' :
+                           item.label}
+                        </span>
+                        <span className="text-zinc-600">{item.label}</span>
+                      </td>
+                      <td className="px-3 py-2 text-center text-xs text-zinc-400">
+                        {new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                      </td>
+                      <td className="px-3 py-2 text-right font-medium text-red-500">{formatINR(item.amount)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <>
+                    {!!deductions.attendanceDeduction && (
+                      <tr className="border-b border-zinc-200">
+                        <td className="px-3 py-2" colSpan={2}>Attendance / Leave Deduction</td>
+                        <td className="px-3 py-2 text-right font-medium">{formatINR(deductions.attendanceDeduction)}</td>
+                      </tr>
+                    )}
+                    {!!deductions.halfDayDeduction && (
+                      <tr className="border-b border-zinc-200">
+                        <td className="px-3 py-2" colSpan={2}>Half-Day Deduction</td>
+                        <td className="px-3 py-2 text-right font-medium">{formatINR(deductions.halfDayDeduction)}</td>
+                      </tr>
+                    )}
+                    {!!deductions.joiningDeduction && (
+                      <tr className="border-b border-zinc-200">
+                        <td className="px-3 py-2" colSpan={2}>Joining Pro-rata Deduction</td>
+                        <td className="px-3 py-2 text-right font-medium">{formatINR(deductions.joiningDeduction)}</td>
+                      </tr>
+                    )}
+                  </>
                 )}
                 {customDeductions.map((d: PayslipItem, i: number) => (
                   <tr key={`c-${i}`} className="border-b border-zinc-200">
-                    <td className="px-3 py-2">{d.type}{d.reason ? <span className="text-zinc-500 text-xs"> ({d.reason})</span> : ''}</td>
+                    <td className="px-3 py-2" colSpan={2}>{d.type}{d.reason ? <span className="text-zinc-500 text-xs"> ({d.reason})</span> : ''}</td>
                     <td className="px-3 py-2 text-right font-medium">{formatINR(d.amount)}</td>
                   </tr>
                 ))}
                 {penalties.map((p: PayslipPenalty, i: number) => (
                   <tr key={`p-${i}`} className="border-b border-zinc-200">
-                    <td className="px-3 py-2">Penalty{p.reason ? ` - ${p.reason}` : ''}</td>
+                    <td className="px-3 py-2" colSpan={2}>Penalty{p.reason ? ` - ${p.reason}` : ''}</td>
                     <td className="px-3 py-2 text-right font-medium">{formatINR(p.amount)}</td>
                   </tr>
                 ))}
-                {!(deductions.attendanceDeduction || deductions.halfDayDeduction || deductions.joiningDeduction || customDeductions.length || penalties.length) && (
+                {!(deductionBreakdown.length || customDeductions.length || penalties.length) && (
                   <tr className="border-b border-zinc-200">
-                    <td className="px-3 py-2">No Deductions</td>
+                    <td className="px-3 py-2" colSpan={2}>No Deductions</td>
                     <td className="px-3 py-2 text-right font-medium">Rs. 0</td>
                   </tr>
                 )}
                 <tr className="bg-zinc-100/70 font-black">
-                  <td className="px-3 py-2">Total Deductions</td>
+                  <td className="px-3 py-2" colSpan={2}>Total Deductions</td>
                   <td className="px-3 py-2 text-right">{formatINR(deductions.totalDeductions)}</td>
                 </tr>
               </tbody>
@@ -228,6 +304,10 @@ export default function PayslipPreviewModal({ payslip, onClose }: { payslip: Pay
               <span>Late: <b className="text-zinc-900">{attendance.lateMarks ?? 0}</b></span>
               <span>Productive Hours: <b className="text-zinc-900">{attendance.productiveHours ?? 0} hrs</b></span>
               {!!attendance.overtimeHours && <span>Overtime: <b className="text-zinc-900">{attendance.overtimeHours} hrs</b></span>}
+            </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs font-medium text-zinc-600 mt-2 pt-2 border-t border-zinc-100">
+              <span>Paid Leave Days: <b className="text-blue-600">{data.paidLeaveDays ?? 0}</b></span>
+              <span>Unpaid Leave Days: <b className="text-red-500">{data.unpaidLeaveDays ?? 0}</b></span>
             </div>
           </div>
 

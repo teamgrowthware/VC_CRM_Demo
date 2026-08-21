@@ -26,6 +26,7 @@ export default function AttendancePage() {
   
   const [history, setHistory] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [activeTab, setActiveTab] = useState<'attendance' | 'calendar' | 'payroll' | 'team' | 'analytics'>(initialTab);
@@ -37,10 +38,12 @@ export default function AttendancePage() {
   const fetchHistory = async () => {
     try {
       setLoading(true);
-      const data = await getAttendanceHistory(selectedMonth, selectedYear).catch(() => []);
-      setHistory(data || []);
+      setError(null);
+      const data = await getAttendanceHistory(selectedMonth, selectedYear);
+      setHistory(data);
     } catch (e) {
-      console.error(e);
+      console.error('Attendance history error:', e);
+      setError('Unable to load attendance history. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -52,10 +55,14 @@ export default function AttendancePage() {
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && (tab === 'attendance' || tab === 'calendar' || tab === 'payroll' || tab === 'team' || tab === 'analytics')) {
+    if (tab && tab !== 'analytics' && (tab === 'attendance' || tab === 'calendar' || tab === 'payroll' || tab === 'team')) {
       setActiveTab(tab as any);
+    } else if (tab === 'analytics' && canSeeAnalytics) {
+      setActiveTab('analytics');
+    } else if (tab === 'analytics') {
+      setActiveTab('attendance');
     }
-  }, [searchParams]);
+  }, [searchParams, canSeeAnalytics]);
 
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -72,29 +79,29 @@ export default function AttendancePage() {
         </p>
       </div>
 
-      <div className="flex bg-zinc-800/50 p-1 w-max rounded-lg border border-zinc-700/50 mb-6">
+      <div className="flex bg-zinc-100 dark:bg-zinc-800/50 p-1 w-max rounded-lg border border-zinc-200 dark:border-zinc-700/50 mb-6">
         <button
           onClick={() => setActiveTab('attendance')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'attendance' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50'}`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'attendance' ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-white shadow-sm' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700/50'}`}
         >
           <Clock className="w-4 h-4" /> My Attendance
         </button>
         <button
           onClick={() => setActiveTab('calendar')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'calendar' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50'}`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'calendar' ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-white shadow-sm' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700/50'}`}
         >
           <CalendarIcon className="w-4 h-4" /> Calendar
         </button>
         <button
           onClick={() => setActiveTab('payroll')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'payroll' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50'}`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'payroll' ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-white shadow-sm' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700/50'}`}
         >
           <IndianRupee className="w-4 h-4" /> Payroll & Fines
         </button>
         {canSeeTeamAttendance && (
           <button
             onClick={() => setActiveTab('team')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'team' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'team' ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-white shadow-sm' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700/50'}`}
           >
             <User className="w-4 h-4" /> Team Attendance
           </button>
@@ -102,7 +109,7 @@ export default function AttendancePage() {
         {canSeeAnalytics && (
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'analytics' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/50'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'analytics' ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-white shadow-sm' : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700/50'}`}
           >
             <TrendingUp className="w-4 h-4" /> Analytics
           </button>
@@ -113,16 +120,16 @@ export default function AttendancePage() {
         <>
           <AttendanceControls onActionComplete={fetchHistory} />
           
-          <div className="mt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/50 p-4 rounded-xl border border-zinc-800">
+          <div className="mt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-100 dark:bg-zinc-900/50 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <div>
-              <h3 className="text-zinc-200 font-bold">Monthly Summary</h3>
+              <h3 className="text-zinc-900 dark:text-zinc-200 font-bold">Monthly Summary</h3>
               <p className="text-xs text-zinc-500">View stats for specific months</p>
             </div>
             <div className="flex items-center gap-3">
               <select 
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-200 outline-none focus:ring-2 focus:ring-blue-500/50"
+                className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-blue-500/50"
               >
                 {months.map((m, i) => (
                   <option key={m} value={i + 1}>{m}</option>
@@ -131,7 +138,7 @@ export default function AttendancePage() {
               <select 
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-200 outline-none focus:ring-2 focus:ring-blue-500/50"
+                className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-blue-500/50"
               >
                 {[2024, 2025, 2026, 2027].map(y => (
                   <option key={y} value={y}>{y}</option>
@@ -142,6 +149,8 @@ export default function AttendancePage() {
 
           {loading ? (
             <div className="mt-6 flex justify-center p-6"><Loader2 className="animate-spin w-6 h-6 text-zinc-400" /></div>
+          ) : error ? (
+            <div className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400">{error}</div>
           ) : (
             <MonthlyReport attendanceData={history} />
           )}

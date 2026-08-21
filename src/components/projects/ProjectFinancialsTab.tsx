@@ -94,7 +94,7 @@ export default function ProjectFinancialsTab({
       setNewMilestone({ title: '', amount: 0, dueDate: format(new Date(), 'yyyy-MM-dd'), notes: '' });
       fetchMilestones();
       onRefresh();
-    } catch (err: any) {
+    } catch (thrown) { const err = thrown as ApiError;
       toast.error(err.response?.data?.message || 'Failed to create milestone');
     }
   };
@@ -106,14 +106,14 @@ export default function ProjectFinancialsTab({
     try {
       await recordPayment(projectId, {
         ...paymentData,
-        milestoneId: showRecordPayment
+        milestoneId: showRecordPayment || undefined
       });
       toast.success('Payment recorded');
       setShowRecordPayment(null);
       setPaymentData({ amount: 0, mode: 'BANK', transactionId: '', paymentReference: '', notes: '', date: format(new Date(), 'yyyy-MM-dd') });
       fetchMilestones();
       onRefresh();
-    } catch (err: any) {
+    } catch (thrown) { const err = thrown as ApiError;
       toast.error(err.response?.data?.message || 'Failed to record payment');
     }
   };
@@ -124,7 +124,7 @@ export default function ProjectFinancialsTab({
       await finalizeProjectFinance(projectId);
       toast.success('Finance finalized');
       onRefresh();
-    } catch (err: any) {
+    } catch (thrown) { const err = thrown as ApiError;
       toast.error(err.response?.data?.message || 'Failed to finalize');
     }
   };

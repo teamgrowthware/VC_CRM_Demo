@@ -28,6 +28,18 @@ export const AttendanceTable = ({ attendanceData }: { attendanceData: Attendance
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   };
 
+  const rowData = useMemo(() => {
+    let lateRunning = 0;
+    const ascending = [...attendanceData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const withLateNum = ascending.map(entry => {
+      if (entry.status === 'LATE') {
+        lateRunning++;
+      }
+      return { ...entry, _lateNum: entry.status === 'LATE' ? lateRunning : 0 };
+    });
+    return withLateNum.reverse();
+  }, [attendanceData]);
+
   const handleExport = () => {
     const exportData = attendanceData.map(record => ({
       Date: formatDate(record.date),
@@ -100,16 +112,28 @@ export const AttendanceTable = ({ attendanceData }: { attendanceData: Attendance
       filter: true,
       cellRenderer: (params: any) => {
         const status = params.value;
+        const lateNum = params.data?._lateNum || 0;
+
         const colorClass = status === 'PRESENT' ? 'text-white bg-emerald-500 dark:bg-emerald-600' 
                          : status === 'ABSENT' ? 'text-white bg-rose-500 dark:bg-rose-600'
                          : status === 'HALFDAY' ? 'text-white bg-orange-500 dark:bg-orange-600'
+                         : status === 'LATE' ? 'text-white bg-amber-500 dark:bg-amber-600'
                          : status === 'WEEKEND' ? 'text-white bg-zinc-500 dark:bg-zinc-600'
                          : status === 'WEEKEND_WORK' ? 'text-white bg-indigo-500 dark:bg-indigo-600'
                          : status === 'AUTO_PUNCH_OUT' ? 'text-white bg-purple-500 dark:bg-purple-600'
+                         : status === 'HOLIDAY' ? 'text-white bg-blue-500 dark:bg-blue-600'
+                         : status === 'HOLIDAY_WORK' ? 'text-white bg-cyan-500 dark:bg-cyan-600'
                          : 'text-white bg-zinc-400 dark:bg-zinc-500';
         return (
-          <span className={`px-2 py-1 text-xs font-bold rounded-full ${colorClass}`}>
-            {status}
+          <span className="flex items-center gap-1.5">
+            <span className={`px-2 py-1 text-xs font-bold rounded-full ${colorClass}`}>
+              {status}
+            </span>
+            {status === 'LATE' && lateNum > 0 && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${lateNum > 3 ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}`}>
+                {lateNum}/3
+              </span>
+            )}
           </span>
         );
       }
@@ -191,7 +215,7 @@ export const AttendanceTable = ({ attendanceData }: { attendanceData: Attendance
       <div className="flex-1 w-full min-w-0 ag-theme-quartz dark:ag-theme-quartz-dark custom-ag-grid">
         <AgGridReact
           theme={themeQuartz}
-          rowData={attendanceData}
+          rowData={rowData}
           columnDefs={colDefs}
           defaultColDef={defaultColDef}
           quickFilterText={searchText}

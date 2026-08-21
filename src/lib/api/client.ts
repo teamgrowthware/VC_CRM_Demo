@@ -1,5 +1,47 @@
 import apiClient from './apiClient';
 
+export interface ManagementClient {
+  id: string;
+  clientId: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  company?: string | null;
+  status: 'ACTIVE' | 'INACTIVE';
+  createdAt: string;
+}
+
+export const fetchClients = async (): Promise<ManagementClient[]> => {
+  const { data } = await apiClient.get('/clients');
+  return data.data;
+};
+
+export const createClient = async (payload: {
+  name: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  password: string;
+}): Promise<ManagementClient> => {
+  const { data } = await apiClient.post('/clients', payload);
+  return data.data;
+};
+
+export const updateClient = async (id: string, payload: {
+  name?: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  status?: 'ACTIVE' | 'INACTIVE';
+}): Promise<ManagementClient> => {
+  const { data } = await apiClient.put(`/clients/${id}`, payload);
+  return data.data;
+};
+
+export const deleteClient = async (id: string): Promise<void> => {
+  await apiClient.delete(`/clients/${id}`);
+};
+
 export interface ClientProject {
   id: string;
   projectId: string;

@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2, ArrowLeft, Send, XCircle, LifeBuoy } from 'lucide-react';
-import { getTicketDetail, addTicketReply, closeTicket, SupportTicket, TicketReply } from '@/lib/api/client';
+import { getTicketDetail, addTicketReply, closeTicket, SupportTicket } from '@/lib/api/client';
 import { toast } from 'sonner';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
   OPEN: { label: 'Open', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30' },
@@ -32,18 +33,18 @@ export default function TicketDetailPage() {
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
 
-  const loadTicket = async () => {
+  const loadTicket = useCallback(async () => {
     try {
       const data = await getTicketDetail(ticketId);
       setTicket(data);
-    } catch (e) {
+    } catch (thrown) { const e = thrown as ApiError;
       console.error(e);
     } finally {
       setLoading(false);
     }
-  };
+  }, [ticketId]);
 
-  useEffect(() => { if (ticketId) loadTicket(); }, [ticketId]);
+  useEffect(() => { if (ticketId) loadTicket(); }, [ticketId, loadTicket]);
 
   const handleReply = async () => {
     if (!replyText.trim()) return;
@@ -53,7 +54,7 @@ export default function TicketDetailPage() {
       setReplyText('');
       toast.success('Reply sent');
       await loadTicket();
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       toast.error(e.response?.data?.message || 'Failed to send reply');
     } finally {
       setSending(false);
@@ -66,7 +67,7 @@ export default function TicketDetailPage() {
       await closeTicket(ticketId);
       toast.success('Ticket closed');
       await loadTicket();
-    } catch (e: any) {
+    } catch (thrown) { const e = thrown as ApiError;
       toast.error(e.response?.data?.message || 'Failed to close');
     }
   };
@@ -139,11 +140,7 @@ export default function TicketDetailPage() {
             return (
               <div key={reply.id} className={`bg-card border border-border rounded-2xl p-5 ${isClient ? 'ml-8 border-l-4 border-l-primary' : 'mr-8 border-l-4 border-l-emerald-500'}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                    isClient ? 'bg-primary/10 text-primary' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                  }`}>
-                    {reply.senderName.charAt(0).toUpperCase()}
-                  </div>
+                  <UserAvatar name={reply.senderName} size="sm" />
                   <span className="text-sm font-semibold text-foreground">{reply.senderName}</span>
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                     isClient ? 'bg-primary/10 text-primary' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'

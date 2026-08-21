@@ -33,6 +33,12 @@ export interface Project {
   name: string;
   description: string | null;
   managerId: string;
+  teamId?: string | null;
+  team?: { id: string; name: string };
+  clientId?: string | null;
+  client?: { id: string; name: string; company?: string | null; email?: string | null } | null;
+  departmentId?: string | null;
+  department?: { id: string; name: string };
   manager?: Employee;
   members?: ProjectMember[];
   startDate: string;
@@ -42,7 +48,7 @@ export interface Project {
   links?: ProjectLink[];
   tasks?: Task[];
   documents?: Document[];
-  timeEntries?: any[];
+  timeEntries?: Array<{ durationMinutes?: number }>;
   totalValue?: number;
   receivedAmount?: number;
   pendingAmount?: number;

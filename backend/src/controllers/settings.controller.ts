@@ -1,33 +1,13 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
+import bcrypt from 'bcryptjs';
+import { NotificationType } from '@prisma/client';
 
 interface AuthRequest extends Request {
   user?: any;
 }
 
-const ALL_NOTIFICATION_TYPES = [
-  'TASK_ASSIGNED',
-  'COMMENT_ADDED',
-  'PROJECT_UPDATED',
-  'DOCUMENT_UPLOADED',
-  'TASK_DUE_SOON',
-  'TASK_OVERDUE',
-  'LATE_ARRIVAL',
-  'ATTENDANCE_PUNCH_OUT',
-  'SOD_REMINDER',
-  'EOD_REMINDER',
-  'PAYMENT_DUE_SOON',
-  'PAYMENT_DUE_TODAY',
-  'PAYMENT_OVERDUE',
-  'TIMER_FORGOTTEN',
-  'MISSING_TIMESHEET',
-  'ENTRY_REJECTED',
-  'LOW_TRACKED_HOURS',
-  'PENDING_APPROVAL',
-  'DEADLINE_APPROACHING',
-  'LEAVE_APPROVED',
-  'LEAVE_REJECTED',
-];
+const ALL_NOTIFICATION_TYPES = Object.values(NotificationType);
 
 export const getSettings = async (req: Request, res: Response) => {
   try {
@@ -41,7 +21,8 @@ export const getSettings = async (req: Request, res: Response) => {
       });
     }
 
-    res.json(settings);
+    const { financePin: _financePin, ...safeSettings } = settings;
+    res.json(safeSettings);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch settings' });
   }
@@ -54,12 +35,19 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       'lunchDuration', 'breakDuration', 'sodReminderTime', 'eodReminderTime',
       'idleTimeoutMinutes', 'idleWarningSeconds', 'autoPauseTimerEnabled',
       'requireApprovalToResume', 'desktopAppEnabledRoles', 'heartbeatIntervalSeconds',
-      'autoStartEnabled', 'ruleBookText', 'financePin',
+      'autoStartEnabled', 'ruleBookText',
     ];
     const data: Record<string, any> = {};
     for (const key of allowedFields) {
       if (req.body[key] !== undefined) {
-        data[key] = req.body[key];
+        if (key === 'financePin' &&
+          (typeof req.body[key] !== 'string' || !/^\d{4}$/.test(req.body[key]))) {
+          res.status(400).json({ message: 'Finance PIN must be exactly 4 digits' });
+          return;
+        }
+        data[key] = key === 'financePin'
+          ? await bcrypt.hash(req.body[key], 12)
+          : req.body[key];
       }
     }
     const settings = await prisma.systemSettings.upsert({
@@ -82,7 +70,8 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       console.error('[AUDIT] settings update audit write failed:', auditErr);
     }
 
-    res.json(settings);
+    const { financePin: _financePin, ...safeSettings } = settings;
+    res.json(safeSettings);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update settings' });
   }
@@ -113,6 +102,13 @@ export const updateNotificationSettings = async (req: AuthRequest, res: Response
 
     if (!Array.isArray(enabledTypes)) {
       res.status(400).json({ error: 'enabledTypes must be an array' });
+      return;
+    }
+
+    if (!enabledTypes.every((type) =>
+      type === 'ALL' || (typeof type === 'string' && ALL_NOTIFICATION_TYPES.includes(type as NotificationType))
+    )) {
+      res.status(400).json({ error: 'enabledTypes contains an unsupported notification type' });
       return;
     }
 
